@@ -1,0 +1,46 @@
+=== Swiss Territory Planner — Validation ===
+
+[1] Required files...
+  PASS: index.html exists
+  PASS: style.css exists
+  PASS: data/data.js exists
+  PASS: data/ch-plz.js exists
+  PASS: .nojekyll exists
+  PASS: .gitignore exists
+  PASS: js/app.js exists
+  PASS: js/state.js exists
+  PASS: js/api.js exists
+  PASS: js/map.js exists
+  PASS: js/filters.js exists
+  PASS: js/zefix.js exists
+  PASS: js/exports.js exists
+  PASS: js/uploads.js exists
+  PASS: js/utils.js exists
+
+[2] Security checks...
+  PASS: CSP meta tag present
+  PASS: X-Content-Type-Options present
+  PASS: Referrer policy present
+
+[3] Secret scanning...
+  PASS: No hardcoded passwords in JS/HTML
+  PASS: No backend URL references in frontend
+
+[4] Deployment safety...
+  PASS: .gitignore excludes database
+  PASS: .gitignore excludes api_server.py
+  PASS: .gitignore excludes .env
+
+[5] JS import validation...
+  PASS: All JS imports resolve correctly
+
+[6] CI/CD workflows...
+  PASS: CI workflow exists
+  PASS: Deploy workflow exists
+
+=== Summary ===
+  Passed: 26
+  Failed: 0
+  Warnings: 0
+
+RESULT: PASSED
