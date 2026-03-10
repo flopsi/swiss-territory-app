@@ -73,8 +73,96 @@ export function renderGeoLayer() {
     state.territoryBorderLayer.bringToFront();
   }
 
+  // Render circle markers for anomaly ZIPs without polygons
+  renderAnomalyMarkers();
+
   // Also update exception table when geo layer re-renders
   renderAnomalyTableIfReady();
+}
+
+// ==================== Anomaly Markers (for ZIPs without polygons) ====================
+function getPolygonCentroid(feature) {
+  // Compute simple centroid from GeoJSON coordinates
+  var coords;
+  if (feature.geometry.type === "Polygon") {
+    coords = feature.geometry.coordinates[0];
+  } else if (feature.geometry.type === "MultiPolygon") {
+    coords = feature.geometry.coordinates[0][0];
+  } else {
+    return null;
+  }
+  var lat = 0, lng = 0, n = coords.length;
+  for (var i = 0; i < n; i++) {
+    lng += coords[i][0];
+    lat += coords[i][1];
+  }
+  return [lat / n, lng / n];
+}
+
+function findNearestPolygonCenter(zip) {
+  // Try progressively shorter prefixes to find a nearby polygon
+  for (var len = 3; len >= 2; len--) {
+    var prefix = zip.substring(0, len);
+    var keys = Object.keys(state.topoFeaturesById);
+    for (var i = 0; i < keys.length; i++) {
+      if (keys[i].substring(0, len) === prefix) {
+        var center = getPolygonCentroid(state.topoFeaturesById[keys[i]]);
+        if (center) return center;
+      }
+    }
+  }
+  return null;
+}
+
+export function renderAnomalyMarkers() {
+  if (state.anomalyMarkerLayer) {
+    state.map.removeLayer(state.anomalyMarkerLayer);
+  }
+
+  var data = getActiveData();
+  if (!data || !data.sfdc_only) return;
+
+  var markers = [];
+  var filtersActive = hasActiveFilters();
+
+  data.sfdc_only.forEach(function (row) {
+    // Only add markers for ZIPs that lack a polygon
+    if (state.topoFeaturesById[row.postcode]) return;
+
+    var entry = state.zipDataMap[row.postcode];
+    if (!entry) return;
+
+    // Respect filters
+    if (filtersActive && isFiltered(entry)) return;
+
+    var center = findNearestPolygonCenter(row.postcode);
+    if (!center) return;
+
+    var isSelected = state.selectedZips[row.postcode];
+    var color = isSelected ? "#2563eb" : coverageColors.exception;
+    var marker = L.circleMarker(center, {
+      radius: 7,
+      fillColor: color,
+      fillOpacity: 0.75,
+      weight: 2,
+      color: isSelected ? "#1d4ed8" : "#fff",
+      opacity: 0.9,
+    });
+
+    marker.bindTooltip(buildTooltip(row.postcode, entry), {
+      sticky: true,
+      className: "zip-tooltip",
+      direction: "auto",
+    });
+
+    marker.on("click", function () {
+      toggleZipSelection(row.postcode);
+    });
+
+    markers.push(marker);
+  });
+
+  state.anomalyMarkerLayer = L.layerGroup(markers).addTo(state.map);
 }
 
 // ==================== Territory Borders ====================
@@ -337,6 +425,8 @@ export function refreshStyles() {
   });
   // Re-render territory borders to match filter state
   renderTerritoryBorders();
+  // Re-render anomaly markers (selection/filter state may have changed)
+  renderAnomalyMarkers();
 }
 
 // ==================== Mark as Excluded ====================

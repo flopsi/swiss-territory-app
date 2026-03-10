@@ -34,6 +34,7 @@ export var state = {
   zefixResults: [],
   zefixChecked: [],
   undoStack: [],
+  anomalyMarkerLayer: null,
 };
 
 // ==================== Color Helpers ====================
