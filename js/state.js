@@ -25,6 +25,7 @@ export var state = {
   selectedZips: {},
   excludedZips: {},
   geoLayer: null,
+  markerLayer: null,
   territoryBorderLayer: null,
   map: null,
   zipDataMap: {},

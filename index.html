@@ -172,7 +172,7 @@
           <div class="section-body">
             <div id="uploadForm" class="upload-form" style="display:flex;">
               <label class="filter-label" for="fileSFDC">SFDC Accounts CSV
-                <span class="filter-hint">(Accounts Name, SF Account ID, CMD Account Manager, zip)</span>
+                <span class="filter-hint">(Account Name, Account ID, Account Manager, ZIP — column aliases auto-detected; comma/semicolon/tab delimiters supported)</span>
               </label>
               <input type="file" id="fileSFDC" accept=".csv" class="upload-file-input">
               <label class="filter-label" for="fileTerritory">Territory CSV
@@ -204,7 +204,7 @@
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
             </button>
           </div>
-          <p class="anomaly-desc">Valid SFDC accounts in ZIPs not found in the master territory file. Some are business exceptions (e.g. Philip Morris country-wide coverage by Daniel Grenno). Those with a map polygon are plotted in red.</p>
+          <p class="anomaly-desc">Valid SFDC accounts in ZIPs not found in the master territory file. Some are business exceptions (e.g. Philip Morris country-wide coverage by Daniel Grenno). ZIPs with map boundaries appear as polygons; others are shown as circle markers at approximate locations.</p>
           <div class="anomaly-table-wrap" id="anomalyTableWrap">
             <table class="anomaly-table" id="anomalyTable">
               <thead>
