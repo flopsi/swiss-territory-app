@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+   ______                            __
+  / ____/___  ____ ___  ____  __  __/ /____  _____
+ / /   / __ \/ __ `__ \/ __ \/ / / / __/ _ \/ ___/
+/ /___/ /_/ / / / / / / /_/ / /_/ / /_/  __/ /
+\____/\____/_/ /_/ /_/ .___/\__,_/\__/\___/_/
+                    /_/
+        Created with Perplexity Computer
+        https://www.perplexity.ai/computer
+-->
+
+<!-- Perplexity Computer Attribution — SEO Meta Tags -->
+<meta name="generator" content="Perplexity Computer">
+<meta name="author" content="Perplexity Computer">
+<meta property="og:see_also" content="https://www.perplexity.ai/computer">
+<link rel="author" href="https://www.perplexity.ai/computer">
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Swiss Territory Planner</title>
+
+<!-- Security headers (meta-tag equivalents for GitHub Pages static hosting) -->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'self';
+               script-src 'self' https://unpkg.com;
+               style-src 'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com;
+               img-src 'self' data: https://*.basemaps.cartocdn.com https://unpkg.com;
+               font-src 'self' https://fonts.gstatic.com;
+               connect-src 'self' https://int.lindas.admin.ch https://*.basemaps.cartocdn.com;">
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+
+<!-- Leaflet (pinned version) -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      crossorigin="anonymous" referrerpolicy="no-referrer" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+<!-- TopoJSON client (pinned version) -->
+<script src="https://unpkg.com/topojson-client@3.1.0/dist/topojson-client.min.js"
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+<!-- Inter font -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-left">
+        <svg class="logo" viewBox="0 0 32 32" width="32" height="32" aria-label="Swiss Territory Planner">
+          <rect x="2" y="2" width="28" height="28" rx="4" fill="#D32F2F"/>
+          <rect x="13" y="7" width="6" height="18" rx="1" fill="#fff"/>
+          <rect x="7" y="13" width="18" height="6" rx="1" fill="#fff"/>
+        </svg>
+        <div>
+          <h1 class="app-title">Swiss Territory Planner</h1>
+          <p class="app-subtitle">Postcode coverage &amp; territory visualization</p>
+        </div>
+      </div>
+      <div class="header-right">
+        <span class="header-badge" id="lastUpdated"></span>
+      </div>
+    </header>
+
+    <!-- Main content -->
+    <div class="app-body">
+      <!-- Left sidebar: controls + stats -->
+      <aside class="sidebar" id="sidebar">
+        <!-- V1-style 4-card stats grid (2x2) -->
+        <div class="stats-grid" id="statsGrid">
+          <div class="stat-card">
+            <span class="stat-value stat-val-blue" id="statTotal">--</span>
+            <span class="stat-label">TOTAL ZIPS</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-value stat-val-green" id="statCovered">--</span>
+            <span class="stat-label">COVERED</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-value stat-val-orange" id="statPotential">--</span>
+            <span class="stat-label">POTENTIAL</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-value stat-val-dark" id="statAccounts">--</span>
+            <span class="stat-label">SFDC ACCOUNTS</span>
+          </div>
+        </div>
+
+        <!-- Filters section (flat, no collapsible) -->
+        <div class="sidebar-section">
+          <div class="section-heading">FILTERS</div>
+          <div class="section-body">
+            <label class="filter-label" for="filterManager">Account Manager <span class="filter-hint">(multi-select)</span></label>
+            <select class="filter-select filter-select-multi" id="filterManager" multiple>
+              <option value="">All Managers</option>
+            </select>
+
+            <label class="filter-label" for="filterTerritory">Territory ID</label>
+            <select class="filter-select" id="filterTerritory">
+              <option value="">All Territories</option>
+            </select>
+
+            <label class="filter-label" for="filterStatus">Coverage Status</label>
+            <select class="filter-select" id="filterStatus">
+              <option value="">All ZIPs</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Color Mode section (flat) -->
+        <div class="sidebar-section">
+          <div class="section-heading">COLOR MODE</div>
+          <div class="section-body">
+            <div class="radio-group">
+              <label class="radio-label">
+                <input type="radio" name="colorMode" value="coverage" checked> Coverage
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="colorMode" value="manager"> Account Manager
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="colorMode" value="territory"> Territory
+              </label>
+            </div>
+            <div class="am-section">
+              <div class="am-label">QUICK SELECT AM</div>
+              <div class="am-buttons" id="amButtons"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Legend section (flat, always visible, matching v1) -->
+        <div class="sidebar-section">
+          <div class="section-heading">LEGEND</div>
+          <div class="section-body">
+            <div id="legendContainer" class="legend-container"></div>
+          </div>
+        </div>
+
+        <!-- Enhanced features tucked away -->
+        <details class="sidebar-section-collapsible">
+          <summary class="section-heading-collapsible">Advanced Tools</summary>
+          <div class="section-body">
+            <div class="mini-stats">
+              <span class="mini-stat"><span class="mini-val" id="statExceptions">0</span> Exceptions</span>
+              <span class="mini-stat"><span class="mini-val" id="statExcluded">0</span> Excluded</span>
+            </div>
+            <div class="export-buttons">
+              <button class="export-btn" id="exportAnomalies" title="Export SFDC-only exception ZIPs">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2M8 2v8M5 7l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Exceptions CSV
+              </button>
+              <button class="export-btn" id="exportExcluded" title="Export excluded ZIPs">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2M8 2v8M5 7l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Excluded CSV
+              </button>
+            </div>
+          </div>
+        </details>
+
+        <!-- Upload data section (client-side only, no backend required) -->
+        <details class="sidebar-section-collapsible">
+          <summary class="section-heading-collapsible">Upload Data</summary>
+          <div class="section-body">
+            <div id="uploadForm" class="upload-form" style="display:flex;">
+              <label class="filter-label" for="fileSFDC">SFDC Accounts CSV
+                <span class="filter-hint">(Accounts Name, SF Account ID, CMD Account Manager, zip)</span>
+              </label>
+              <input type="file" id="fileSFDC" accept=".csv" class="upload-file-input">
+              <label class="filter-label" for="fileTerritory">Territory CSV
+                <span class="filter-hint">(Postcode, Territory_ID, AM 2026)</span>
+              </label>
+              <input type="file" id="fileTerritory" accept=".csv" class="upload-file-input">
+              <button class="export-btn upload-process-btn" id="btnProcessUpload" disabled title="Upload both files to process">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" transform="rotate(180 8 8)"/></svg>
+                Process &amp; Refresh
+              </button>
+              <p class="upload-hint" id="uploadStatus"></p>
+            </div>
+          </div>
+        </details>
+      </aside>
+
+      <!-- Map area -->
+      <main class="map-container">
+        <div id="map"></div>
+
+        <!-- Exception overlay panel (hidden, opened from bottom bar) -->
+        <div class="anomaly-overlay" id="anomalySection" style="display:none;">
+          <div class="anomaly-overlay-header">
+            <h3 class="anomaly-overlay-title">
+              SFDC-Only ZIP Exceptions
+              <span class="anomaly-count" id="anomalyCount">0</span>
+            </h3>
+            <button class="close-btn" id="closeAnomalyPanel" title="Close" aria-label="Close">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+          <p class="anomaly-desc">Valid SFDC accounts in ZIPs not found in the master territory file. Some are business exceptions (e.g. Philip Morris country-wide coverage by Daniel Grenno). Those with a map polygon are plotted in red.</p>
+          <div class="anomaly-table-wrap" id="anomalyTableWrap">
+            <table class="anomaly-table" id="anomalyTable">
+              <thead>
+                <tr>
+                  <th>ZIP</th>
+                  <th>SFDC Territory</th>
+                  <th>SFDC Manager</th>
+                  <th>Accounts</th>
+                  <th>Account Names</th>
+                  <th>Reason</th>
+                  <th>On Map</th>
+                </tr>
+              </thead>
+              <tbody id="anomalyBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Selection tray (overlays bottom of map) -->
+        <div class="selection-tray" id="selectionTray" style="display:none;">
+          <div class="tray-header">
+            <h3 class="tray-title">
+              Selected ZIPs
+              <span class="tray-count" id="trayCount">0</span>
+            </h3>
+            <div class="tray-actions">
+              <button class="tray-btn tray-btn-primary" id="btnZefix" title="Query ZEFIX for companies in selected ZIPs (max 10)">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.5"/><path d="M11 11l3.5 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                Find in ZEFIX
+              </button>
+              <button class="tray-btn tray-btn-warn" id="btnMarkExcluded" title="Mark selected ZIPs as 'no valid accounts'">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M5 5l6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                Mark Excluded
+              </button>
+              <button class="tray-btn" id="btnExportSelected" title="Export selected ZIPs as CSV">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2M8 2v8M5 7l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Export CSV
+              </button>
+              <button class="tray-btn tray-btn-ghost" id="btnClearSelection" title="Clear all selections">
+                Clear All
+              </button>
+            </div>
+          </div>
+          <div class="tray-message" id="trayMessage" style="display:none;"></div>
+          <div class="tray-chips" id="trayChips"></div>
+        </div>
+      </main>
+
+      <!-- Right panel for ZEFIX results (hidden by default) -->
+      <aside class="zefix-panel" id="zefixPanel" style="display:none;">
+        <div class="zefix-panel-header">
+          <h3 class="section-heading" style="margin-bottom:0;">ZEFIX Results</h3>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
+            <span id="zefixSelCount" style="font-size:11px;color:#64748b;"></span>
+            <button class="export-btn export-btn-sm" id="queueNotionBatch" title="Store checked ZEFIX companies for manual Notion push">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3M2 13h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Queue for Notion
+            </button>
+            <button class="export-btn export-btn-sm" id="exportZefix" title="Export checked ZEFIX results as CSV">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2M8 2v8M5 7l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Export CSV
+            </button>
+            <button class="close-btn" id="closeZefix" title="Close ZEFIX panel" aria-label="Close">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="zefix-status" id="zefixStatus"></div>
+        <div class="zefix-status" id="notionQueueStatus" style="display:none;"></div>
+        <div class="zefix-table-wrap" id="zefixTableWrap">
+          <table class="zefix-table" id="zefixTable">
+            <thead>
+              <tr>
+                <th style="width:32px;"><input type="checkbox" id="zefixSelectAll" checked title="Select / deselect all"></th>
+                <th>Legal Name</th>
+                <th>Purpose</th>
+                <th>ZIP</th>
+                <th>Locality</th>
+                <th>UID</th>
+                <th>Link</th>
+              </tr>
+            </thead>
+            <tbody id="zefixBody"></tbody>
+          </table>
+        </div>
+      </aside>
+    </div>
+
+    <!-- V1-style bottom exception bar -->
+    <div class="anomaly-bar" id="anomalyBar">
+      <div class="anomaly-bar-inner" id="anomalyBarToggle">
+        <span class="anomaly-bar-title">SFDC-Only ZIP Exceptions</span>
+        <span class="anomaly-bar-count" id="anomalyBarCount">0</span>
+        <svg class="anomaly-bar-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <p class="anomaly-bar-desc">Valid SFDC accounts in ZIPs not listed in the master territory file. These are business exceptions, not data errors.</p>
+    </div>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <span>&copy; 2026 Swiss Territory Planner</span>
+      <a href="https://www.perplexity.ai/computer" target="_blank" rel="noopener noreferrer">Created with Perplexity Computer</a>
+    </footer>
+  </div>
+
+  <script src="./data/data.js"></script>
+  <script src="./data/ch-plz.js"></script>
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>
