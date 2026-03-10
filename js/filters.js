@@ -163,6 +163,17 @@ function addLegendItem(container, color, label) {
 }
 
 // ==================== Exception (Anomaly) Table ====================
+function hasNearbyPolygon(zip) {
+  for (var len = 3; len >= 2; len--) {
+    var prefix = zip.substring(0, len);
+    var keys = Object.keys(state.topoFeaturesById);
+    for (var i = 0; i < keys.length; i++) {
+      if (keys[i].substring(0, len) === prefix) return true;
+    }
+  }
+  return false;
+}
+
 export function renderAnomalyTable() {
   var data = getActiveData();
   var count = data.sfdc_only.length;
@@ -176,6 +187,9 @@ export function renderAnomalyTable() {
 
   data.sfdc_only.forEach(function (row) {
     var hasPolygon = !!state.topoFeaturesById[row.postcode];
+    // ZIPs without their own polygon are shown as circle markers if a nearby polygon exists
+    var hasMarker = !hasPolygon && hasNearbyPolygon(row.postcode);
+    var onMap = hasPolygon || hasMarker;
     var tr = document.createElement("tr");
     var accountNames = row.sfdc_accounts
       .map(function (a) { return escapeHTML(a.name); })
@@ -186,6 +200,9 @@ export function renderAnomalyTable() {
     var excInfo = getExceptionInfo(pseudoEntry);
     var reasonText = excInfo ? excInfo.category : "Not in territory file";
 
+    var mapLabel = hasPolygon ? "Polygon" : (hasMarker ? "Marker" : "No");
+    var badgeClass = onMap ? "badge-yes" : "badge-no";
+
     tr.innerHTML =
       "<td><strong>" + row.postcode + "</strong></td>" +
       "<td>" + escapeHTML(row.sfdc_territories.join(", ").replace(/CMD_EMEA_CH_AM_/g, "AM ")) + "</td>" +
@@ -193,7 +210,7 @@ export function renderAnomalyTable() {
       "<td>" + row.sfdc_account_count + "</td>" +
       "<td>" + accountNames + "</td>" +
       "<td>" + escapeHTML(reasonText) + "</td>" +
-      '<td><span class="badge ' + (hasPolygon ? 'badge-yes' : 'badge-no') + '">' + (hasPolygon ? 'Yes' : 'No') + '</span></td>';
+      '<td><span class="badge ' + badgeClass + '">' + mapLabel + '</span></td>';
     tbody.appendChild(tr);
   });
 }
