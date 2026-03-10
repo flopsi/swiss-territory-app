@@ -4,12 +4,13 @@
 
 import { state, getActiveData, getEffectiveStatus, getExceptionInfo } from "./state.js";
 import { downloadCSV } from "./utils.js";
+import { FALLBACK_ZIP_COORDS } from "./map.js";
 
 export function exportAnomalies() {
   var data = getActiveData();
   var rows = [["ZIP", "SFDC_Territory", "SFDC_Manager", "Account_Count", "Account_Names", "Reason", "Category", "Polygon_Exists"]];
   data.sfdc_only.forEach(function (row) {
-    var hasPolygon = !!state.topoFeaturesById[row.postcode];
+    var hasPolygon = !!state.topoFeaturesById[row.postcode] || !!FALLBACK_ZIP_COORDS[row.postcode];
     var names = row.sfdc_accounts.map(function (a) { return a.name; }).join("; ");
     var pseudoEntry = state.zipDataMap[row.postcode] || { sfdc_accounts: row.sfdc_accounts };
     var excInfo = getExceptionInfo(pseudoEntry);

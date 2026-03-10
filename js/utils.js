@@ -2,16 +2,22 @@
  * utils.js — Shared utility functions.
  */
 
-// ==================== CSV Parser (RFC 4180) ====================
+// ==================== CSV Parser (RFC 4180, auto-detect delimiter) ====================
+// Auto-detects comma, semicolon, or tab delimiters from the header row.
 export function parseCSV(text) {
-  var rows = [];
-  var row = [];
-  var field = "";
-  var inQuote = false;
   // Normalise line endings
   text = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   // Strip BOM
   if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+
+  // Auto-detect delimiter from the first line (header)
+  var firstLine = text.split("\n")[0] || "";
+  var delimiter = detectDelimiter(firstLine);
+
+  var rows = [];
+  var row = [];
+  var field = "";
+  var inQuote = false;
 
   for (var i = 0; i < text.length; i++) {
     var ch = text[i];
@@ -29,7 +35,7 @@ export function parseCSV(text) {
     } else {
       if (ch === '"') {
         inQuote = true;
-      } else if (ch === ",") {
+      } else if (ch === delimiter) {
         row.push(field.trim());
         field = "";
       } else if (ch === "\n") {
@@ -58,6 +64,65 @@ export function parseCSV(text) {
   }
   return result;
 }
+
+// Detect delimiter by counting occurrences in the header line.
+// Supports comma, semicolon, and tab. Picks whichever appears most.
+function detectDelimiter(headerLine) {
+  var commas = (headerLine.match(/,/g) || []).length;
+  var semis = (headerLine.match(/;/g) || []).length;
+  var tabs = (headerLine.match(/\t/g) || []).length;
+  if (semis > commas && semis >= tabs) return ";";
+  if (tabs > commas && tabs >= semis) return "\t";
+  return ",";
+}
+
+// ==================== SFDC Column Name Normalisation ====================
+// Maps common SFDC export column name variations to the canonical names
+// expected by the app. Applied to CSV rows after parsing.
+var SFDC_ALIASES = {
+  "Accounts Name": ["Account Name", "AccountName", "Account_Name", "Accounts Name"],
+  "SF Account ID": ["SF Account ID", "Account ID", "AccountId", "Account_ID", "Id", "Account Id"],
+  "CMD Account Manager": ["CMD Account Manager", "Account Owner", "Owner Full Name", "Owner Name", "Account Manager", "AccountOwner"],
+  "zip": ["zip", "Zip", "ZIP", "BillingPostalCode", "Billing Zip/Postal Code", "Billing Zip", "Postal Code", "PostalCode", "Postcode", "PLZ"],
+};
+
+var TERRITORY_ALIASES = {
+  "Postcode": ["Postcode", "postcode", "Postal Code", "PostalCode", "ZIP", "Zip", "zip", "PLZ"],
+  "Territory_ID": ["Territory_ID", "Territory ID", "TerritoryID", "Territory", "territory_id"],
+  "AM 2026": ["AM 2026", "AM2026", "Account Manager", "AccountManager", "AM"],
+};
+
+// Remap row keys to canonical names using alias maps.
+// Returns a new array of objects with canonical keys.
+export function normalizeHeaders(rows, aliasMap) {
+  if (rows.length === 0) return rows;
+  var originalKeys = Object.keys(rows[0]);
+  var keyMapping = {}; // original -> canonical
+
+  Object.keys(aliasMap).forEach(function (canonical) {
+    var aliases = aliasMap[canonical];
+    for (var i = 0; i < originalKeys.length; i++) {
+      var orig = originalKeys[i];
+      for (var j = 0; j < aliases.length; j++) {
+        if (orig.toLowerCase().trim() === aliases[j].toLowerCase().trim()) {
+          keyMapping[orig] = canonical;
+          return;
+        }
+      }
+    }
+  });
+
+  return rows.map(function (row) {
+    var mapped = {};
+    Object.keys(row).forEach(function (key) {
+      var canonical = keyMapping[key] || key;
+      mapped[canonical] = row[key];
+    });
+    return mapped;
+  });
+}
+
+export { SFDC_ALIASES, TERRITORY_ALIASES };
 
 // ==================== HTML Escaping ====================
 export function escapeHTML(str) {

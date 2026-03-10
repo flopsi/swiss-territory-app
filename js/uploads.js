@@ -7,7 +7,7 @@ import {
   setUsingPersistedData, getUsingPersistedData,
   setSavedUploadedAt, buildZipDataMap,
 } from "./state.js";
-import { parseCSV, normalizeZip } from "./utils.js";
+import { parseCSV, normalizeZip, normalizeHeaders, SFDC_ALIASES, TERRITORY_ALIASES } from "./utils.js";
 import { saveDatasetToServer, clearPersistedDataset } from "./api.js";
 import { renderGeoLayer, renderTerritoryBorders, updateSelectionTray, refreshStyles } from "./map.js";
 import {
@@ -299,14 +299,18 @@ export function setupUploadEvents() {
         if (sfdcRows.length === 0) throw new Error("SFDC CSV is empty or unparseable.");
         if (territoryRows.length === 0) throw new Error("Territory CSV is empty or unparseable.");
 
-        // Validate expected columns
+        // Normalize column headers to canonical names (handles SFDC export variations)
+        sfdcRows = normalizeHeaders(sfdcRows, SFDC_ALIASES);
+        territoryRows = normalizeHeaders(territoryRows, TERRITORY_ALIASES);
+
+        // Validate expected columns (after normalization)
         var sfdcCols = Object.keys(sfdcRows[0]);
         if (sfdcCols.indexOf("Accounts Name") < 0 || sfdcCols.indexOf("zip") < 0) {
-          throw new Error("SFDC CSV missing expected columns (Accounts Name, SF Account ID, CMD Account Manager, zip). Found: " + sfdcCols.join(", "));
+          throw new Error("SFDC CSV missing expected columns (need: Accounts Name, zip — or common aliases like Account Name, BillingPostalCode). Found: " + sfdcCols.join(", "));
         }
         var terrCols = Object.keys(territoryRows[0]);
         if (terrCols.indexOf("Postcode") < 0 || terrCols.indexOf("Territory_ID") < 0) {
-          throw new Error("Territory CSV missing expected columns (Postcode, Territory_ID, AM 2026). Found: " + terrCols.join(", "));
+          throw new Error("Territory CSV missing expected columns (need: Postcode, Territory_ID — or common aliases). Found: " + terrCols.join(", "));
         }
 
         statusEl.textContent = "Processing " + sfdcRows.length + " SFDC rows + " + territoryRows.length + " territory rows...";

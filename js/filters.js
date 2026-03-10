@@ -7,7 +7,7 @@ import {
   hasActiveFilters, isFiltered, getExceptionInfo, coverageColors,
 } from "./state.js";
 import { escapeHTML, animateNumber } from "./utils.js";
-import { refreshStyles, renderTerritoryBorders } from "./map.js";
+import { refreshStyles, renderTerritoryBorders, FALLBACK_ZIP_COORDS } from "./map.js";
 
 // ==================== Populate Selects ====================
 export function populateSelects() {
@@ -175,7 +175,7 @@ export function renderAnomalyTable() {
   tbody.innerHTML = "";
 
   data.sfdc_only.forEach(function (row) {
-    var hasPolygon = !!state.topoFeaturesById[row.postcode];
+    var hasPolygon = !!state.topoFeaturesById[row.postcode] || !!FALLBACK_ZIP_COORDS[row.postcode];
     var tr = document.createElement("tr");
     var accountNames = row.sfdc_accounts
       .map(function (a) { return escapeHTML(a.name); })
