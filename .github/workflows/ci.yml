@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for secrets or credentials in source
+        run: |
+          echo "Scanning for potential secrets..."
+          # Fail if any password/secret/token patterns found in JS/HTML files
+          if grep -rEi '(password|secret|api_key|token)\s*[:=]\s*["\x27][^\s"'\'']{6,}' \
+               --include='*.js' --include='*.html' --include='*.json' .; then
+            echo "::error::Potential hardcoded secret found in source files!"
+            exit 1
+          fi
+          echo "No secrets detected."
+
+      - name: Validate HTML structure
+        run: |
+          echo "Checking index.html exists and has basic structure..."
+          test -f index.html || { echo "::error::index.html not found"; exit 1; }
+          grep -q '<!DOCTYPE html>' index.html || { echo "::error::Missing DOCTYPE"; exit 1; }
+          grep -q 'Content-Security-Policy' index.html || { echo "::error::Missing CSP meta tag"; exit 1; }
+          grep -q 'X-Content-Type-Options' index.html || { echo "::error::Missing X-Content-Type-Options"; exit 1; }
+          echo "HTML structure OK."
+
+      - name: Validate JS modules exist
+        run: |
+          echo "Checking all required JS modules..."
+          for f in js/app.js js/state.js js/api.js js/map.js js/filters.js js/zefix.js js/exports.js js/uploads.js js/utils.js; do
+            test -f "$f" || { echo "::error::Missing $f"; exit 1; }
+          done
+          echo "All JS modules present."
+
+      - name: Validate data files exist
+        run: |
+          echo "Checking data files..."
+          test -f data/data.js || { echo "::error::Missing data/data.js"; exit 1; }
+          test -f data/ch-plz.js || { echo "::error::Missing data/ch-plz.js"; exit 1; }
+          echo "Data files OK."
+
+      - name: Check no backend dependencies in JS
+        run: |
+          echo "Verifying no backend API calls remain in JS..."
+          if grep -rn 'localhost:8000\|__PORT_8000__\|api_server\|uvicorn\|fastapi' js/ index.html; then
+            echo "::error::Backend dependency references found in frontend code!"
+            exit 1
+          fi
+          echo "No backend dependencies in frontend code."
+
+      - name: Check no hardcoded passwords
+        run: |
+          echo "Checking for hardcoded passwords..."
+          if grep -rn 'UPLOAD_PASSWORD\|swissterritory2026' js/ index.html; then
+            echo "::error::Hardcoded password found!"
+            exit 1
+          fi
+          echo "No hardcoded passwords."
+
+      - name: Verify .gitignore excludes sensitive files
+        run: |
+          echo "Checking .gitignore..."
+          test -f .gitignore || { echo "::error::Missing .gitignore"; exit 1; }
+          grep -q 'swiss_territory_state.db' .gitignore || { echo "::error::.gitignore missing db exclusion"; exit 1; }
+          grep -q 'api_server.py' .gitignore || { echo "::error::.gitignore missing api_server exclusion"; exit 1; }
+          grep -q '\.env' .gitignore || { echo "::error::.gitignore missing .env exclusion"; exit 1; }
+          echo ".gitignore OK."
+
+      - name: Check file sizes (no large binaries)
+        run: |
+          echo "Checking for oversized files..."
+          MAX_SIZE=6000000  # 6MB
+          find . -type f -not -path './.git/*' -size +${MAX_SIZE}c | while read f; do
+            echo "::warning::Large file detected: $f ($(stat -c%s "$f") bytes)"
+          done
+          echo "File size check complete."
