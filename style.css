@@ -889,7 +889,7 @@ html, body {
 
 /* ========== ZEFIX PANEL ========== */
 .zefix-panel {
-  width: 520px;
+  width: 720px;
   flex-shrink: 0;
   background: var(--color-surface);
   border-left: 1px solid var(--color-border);
@@ -984,7 +984,7 @@ html, body {
 }
 
 .zefix-purpose-cell {
-  max-width: 260px;
+  max-width: 480px;
   font-size: 10px;
   color: var(--color-text-secondary);
   word-break: break-word;
