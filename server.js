@@ -3,11 +3,14 @@
  *
  * Serves sensitive data (territory assignments, SFDC accounts) only after login.
  * Static frontend assets are served publicly; data endpoints require a session.
+ *
+ * Vercel-compatible: uses cookie-session (stateless), read-only data from bundled
+ * files, and exports the app for serverless. Local dev still uses app.listen().
  */
 
 require("dotenv").config();
 const express = require("express");
-const session = require("express-session");
+const cookieSession = require("cookie-session");
 const helmet = require("helmet");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
@@ -17,6 +20,7 @@ const fs = require("fs");
 
 const app = express();
 const PORT = parseInt(process.env.PORT || "3000", 10);
+const IS_VERCEL = !!process.env.VERCEL;
 
 // --------------- Environment ---------------
 const ADMIN_USER = process.env.ADMIN_USER || "admin";
@@ -60,18 +64,15 @@ if (ALLOWED_ORIGINS.length > 0) {
   );
 }
 
-// Sessions
+// Sessions — cookie-session stores state in a signed cookie (stateless / Vercel-safe)
 app.use(
-  session({
-    secret: SESSION_SECRET,
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 8 * 60 * 60 * 1000, // 8 hours
-    },
+  cookieSession({
+    name: "session",
+    keys: [SESSION_SECRET],
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 8 * 60 * 60 * 1000, // 8 hours
   })
 );
 
@@ -95,6 +96,11 @@ app.use(function (req, res, next) {
 function requireAuth(req, res, next) {
   if (req.session && req.session.authenticated) return next();
   return res.status(401).json({ error: "Authentication required" });
+}
+
+// Read-only guard — rejects write attempts on Vercel with a clear message
+function readOnlyGuard(_req, res) {
+  return res.status(403).json({ error: "Read-only deployment. Data modifications are not supported." });
 }
 
 // --------------- Static files ---------------
@@ -145,11 +151,11 @@ app.post("/api/login", function (req, res) {
 });
 
 app.post("/api/logout", requireAuth, function (req, res) {
-  req.session.destroy(function () {
-    res.clearCookie("connect.sid");
-    res.clearCookie("csrf_token");
-    res.json({ ok: true });
-  });
+  req.session = null; // cookie-session: clear by nullifying
+  res.clearCookie("session");
+  res.clearCookie("session.sig");
+  res.clearCookie("csrf_token");
+  res.json({ ok: true });
 });
 
 app.get("/api/me", function (req, res) {
@@ -159,123 +165,147 @@ app.get("/api/me", function (req, res) {
   res.json({ authenticated: false });
 });
 
-// --------------- Data endpoints (authenticated) ---------------
-// Serve APP_DATA
+// --------------- Data endpoints (authenticated, read-only) ---------------
+// Serve APP_DATA — reads from bundled data/data.js (no server-data/ dependency)
 app.get("/api/data", requireAuth, function (_req, res) {
-  var dataPath = path.join(__dirname, "server-data", "data.json");
-  if (!fs.existsSync(dataPath)) {
-    // Fallback: try to extract from data/data.js
-    var jsPath = path.join(__dirname, "data", "data.js");
-    if (fs.existsSync(jsPath)) {
-      return res.sendFile(jsPath);
+  // On Vercel (or when server-data/ doesn't exist), serve bundled data directly
+  if (!IS_VERCEL) {
+    var serverDataPath = path.join(__dirname, "server-data", "data.json");
+    if (fs.existsSync(serverDataPath)) {
+      return res.sendFile(serverDataPath);
     }
-    return res.status(404).json({ error: "Data file not found" });
   }
-  res.sendFile(dataPath);
+  var jsPath = path.join(__dirname, "data", "data.js");
+  if (fs.existsSync(jsPath)) {
+    return res.sendFile(jsPath);
+  }
+  return res.status(404).json({ error: "Data file not found" });
 });
 
 // Serve TopoJSON
 app.get("/api/topojson", requireAuth, function (_req, res) {
-  var topoPath = path.join(__dirname, "server-data", "ch-plz.topojson");
-  if (!fs.existsSync(topoPath)) {
-    // Fallback: try original location
-    var origPath = path.join(__dirname, "data", "ch-plz.topojson");
-    if (fs.existsSync(origPath)) {
-      return res.sendFile(origPath);
+  if (!IS_VERCEL) {
+    var serverTopoPath = path.join(__dirname, "server-data", "ch-plz.topojson");
+    if (fs.existsSync(serverTopoPath)) {
+      return res.sendFile(serverTopoPath);
     }
-    return res.status(404).json({ error: "TopoJSON file not found" });
   }
-  res.sendFile(topoPath);
+  var origPath = path.join(__dirname, "data", "ch-plz.topojson");
+  if (fs.existsSync(origPath)) {
+    return res.sendFile(origPath);
+  }
+  return res.status(404).json({ error: "TopoJSON file not found" });
 });
 
-// --------------- Excluded ZIPs ---------------
-var EXCLUDED_FILE = path.join(__dirname, "server-data", "excluded.json");
-
-function readExcluded() {
+// --------------- Excluded ZIPs (read-only on Vercel) ---------------
+app.get("/api/excluded", requireAuth, function (_req, res) {
+  // Always returns empty on Vercel (no persistent storage)
+  if (IS_VERCEL) {
+    return res.json({});
+  }
+  var excludedFile = path.join(__dirname, "server-data", "excluded.json");
   try {
-    if (fs.existsSync(EXCLUDED_FILE)) {
-      return JSON.parse(fs.readFileSync(EXCLUDED_FILE, "utf8"));
+    if (fs.existsSync(excludedFile)) {
+      return res.json(JSON.parse(fs.readFileSync(excludedFile, "utf8")));
     }
   } catch (e) {
     console.warn("Could not read excluded.json:", e.message);
   }
-  return {};
-}
-
-function writeExcluded(data) {
-  var dir = path.dirname(EXCLUDED_FILE);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(EXCLUDED_FILE, JSON.stringify(data, null, 2));
-}
-
-app.get("/api/excluded", requireAuth, function (_req, res) {
-  res.json(readExcluded());
+  res.json({});
 });
 
-app.post("/api/excluded", requireAuth, function (req, res) {
-  var map = req.body;
-  if (typeof map !== "object" || Array.isArray(map)) {
-    return res.status(400).json({ error: "Expected object mapping ZIP -> timestamp" });
+// Write endpoints — disabled on Vercel, functional for local dev
+if (IS_VERCEL) {
+  app.post("/api/excluded", requireAuth, readOnlyGuard);
+  app.post("/api/upload-excluded", requireAuth, readOnlyGuard);
+  app.post("/api/dataset", requireAuth, readOnlyGuard);
+  app.delete("/api/dataset", requireAuth, readOnlyGuard);
+} else {
+  // --- Local/traditional server: full read-write support ---
+  var EXCLUDED_FILE = path.join(__dirname, "server-data", "excluded.json");
+
+  function readExcluded() {
+    try {
+      if (fs.existsSync(EXCLUDED_FILE)) {
+        return JSON.parse(fs.readFileSync(EXCLUDED_FILE, "utf8"));
+      }
+    } catch (e) {
+      console.warn("Could not read excluded.json:", e.message);
+    }
+    return {};
   }
-  writeExcluded(map);
-  res.json({ saved: true });
-});
 
-// Upload excluded ZIPs from CSV/TXT
-app.post("/api/upload-excluded", requireAuth, function (req, res) {
-  var zips = req.body.zips;
-  if (!Array.isArray(zips)) {
-    return res.status(400).json({ error: "Expected { zips: string[] }" });
+  function writeExcluded(data) {
+    var dir = path.dirname(EXCLUDED_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(EXCLUDED_FILE, JSON.stringify(data, null, 2));
   }
 
-  // Validate ZIP format (Swiss postcodes: 1000-9999)
-  var valid = [];
-  var invalid = [];
-  var now = new Date().toISOString();
+  app.post("/api/excluded", requireAuth, function (req, res) {
+    var map = req.body;
+    if (typeof map !== "object" || Array.isArray(map)) {
+      return res.status(400).json({ error: "Expected object mapping ZIP -> timestamp" });
+    }
+    writeExcluded(map);
+    res.json({ saved: true });
+  });
 
-  zips.forEach(function (z) {
-    var normalized = String(z).trim().padStart(4, "0");
-    if (/^\d{4}$/.test(normalized)) {
-      var num = parseInt(normalized, 10);
-      if (num >= 1000 && num <= 9999) {
-        valid.push(normalized);
+  app.post("/api/upload-excluded", requireAuth, function (req, res) {
+    var zips = req.body.zips;
+    if (!Array.isArray(zips)) {
+      return res.status(400).json({ error: "Expected { zips: string[] }" });
+    }
+    var valid = [];
+    var invalid = [];
+    var now = new Date().toISOString();
+    zips.forEach(function (z) {
+      var normalized = String(z).trim().padStart(4, "0");
+      if (/^\d{4}$/.test(normalized)) {
+        var num = parseInt(normalized, 10);
+        if (num >= 1000 && num <= 9999) {
+          valid.push(normalized);
+        } else {
+          invalid.push(z);
+        }
       } else {
         invalid.push(z);
       }
-    } else {
-      invalid.push(z);
+    });
+    var current = readExcluded();
+    valid.forEach(function (zip) {
+      if (!current[zip]) current[zip] = now;
+    });
+    writeExcluded(current);
+    res.json({ saved: true, added: valid.length, invalid: invalid, total: Object.keys(current).length });
+  });
+
+  app.post("/api/dataset", requireAuth, function (req, res) {
+    var data = req.body;
+    if (!data || !data.merged) {
+      return res.status(400).json({ error: "Invalid dataset format" });
     }
+    var dir = path.join(__dirname, "server-data");
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    var now = new Date().toISOString();
+    fs.writeFileSync(path.join(dir, "uploaded-dataset.json"), JSON.stringify(data));
+    fs.writeFileSync(path.join(dir, "uploaded-at.json"), JSON.stringify({ uploaded_at: now }));
+    res.json({ saved: true, uploaded_at: now });
   });
 
-  var current = readExcluded();
-  valid.forEach(function (zip) {
-    if (!current[zip]) current[zip] = now;
+  app.delete("/api/dataset", requireAuth, function (_req, res) {
+    var dir = path.join(__dirname, "server-data");
+    ["uploaded-dataset.json", "uploaded-at.json", "excluded.json"].forEach(function (f) {
+      var p = path.join(dir, f);
+      if (fs.existsSync(p)) fs.unlinkSync(p);
+    });
+    res.json({ cleared: true });
   });
-  writeExcluded(current);
-
-  res.json({
-    saved: true,
-    added: valid.length,
-    invalid: invalid,
-    total: Object.keys(current).length,
-  });
-});
-
-// --------------- Dataset upload (authenticated) ---------------
-app.post("/api/dataset", requireAuth, function (req, res) {
-  var data = req.body;
-  if (!data || !data.merged) {
-    return res.status(400).json({ error: "Invalid dataset format" });
-  }
-  var dir = path.join(__dirname, "server-data");
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  var now = new Date().toISOString();
-  fs.writeFileSync(path.join(dir, "uploaded-dataset.json"), JSON.stringify(data));
-  fs.writeFileSync(path.join(dir, "uploaded-at.json"), JSON.stringify({ uploaded_at: now }));
-  res.json({ saved: true, uploaded_at: now });
-});
+}
 
 app.get("/api/dataset-meta", requireAuth, function (_req, res) {
+  if (IS_VERCEL) {
+    return res.json({ uploaded_at: null });
+  }
   var metaPath = path.join(__dirname, "server-data", "uploaded-at.json");
   if (fs.existsSync(metaPath)) {
     var meta = JSON.parse(fs.readFileSync(metaPath, "utf8"));
@@ -284,17 +314,14 @@ app.get("/api/dataset-meta", requireAuth, function (_req, res) {
   res.json({ uploaded_at: null });
 });
 
-app.delete("/api/dataset", requireAuth, function (_req, res) {
-  var dir = path.join(__dirname, "server-data");
-  ["uploaded-dataset.json", "uploaded-at.json", "excluded.json"].forEach(function (f) {
-    var p = path.join(dir, f);
-    if (fs.existsSync(p)) fs.unlinkSync(p);
+// --------------- Start / Export ---------------
+// Vercel: export the app for the serverless adapter
+// Local: bind to port
+if (!IS_VERCEL) {
+  app.listen(PORT, function () {
+    console.log("Swiss Territory App server running on http://localhost:" + PORT);
+    console.log("Environment: " + (process.env.NODE_ENV || "development"));
   });
-  res.json({ cleared: true });
-});
+}
 
-// --------------- Start ---------------
-app.listen(PORT, function () {
-  console.log("Swiss Territory App server running on http://localhost:" + PORT);
-  console.log("Environment: " + (process.env.NODE_ENV || "development"));
-});
+module.exports = app;
