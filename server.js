@@ -175,9 +175,14 @@ app.get("/api/data", requireAuth, function (_req, res) {
       return res.sendFile(serverDataPath);
     }
   }
+  // Bundled data/data.js is a JS file (const APP_DATA = {...}), extract the JSON
   var jsPath = path.join(__dirname, "data", "data.js");
   if (fs.existsSync(jsPath)) {
-    return res.sendFile(jsPath);
+    var raw = fs.readFileSync(jsPath, "utf8");
+    // Strip the "const APP_DATA = " prefix and any trailing semicolons/whitespace
+    var jsonStr = raw.replace(/^[^=]+=\s*/, "").replace(/;\s*$/, "");
+    res.setHeader("Content-Type", "application/json");
+    return res.send(jsonStr);
   }
   return res.status(404).json({ error: "Data file not found" });
 });
