@@ -38,8 +38,10 @@ jobs:
 
       - name: Install dependencies
         run: |
-          if [ -f package.json ]; then
+          if [ -f package-lock.json ]; then
             npm ci --ignore-scripts
+          elif [ -f package.json ]; then
+            npm install --ignore-scripts
           else
             echo "No package.json — skipping npm install (vanilla JS project)"
           fi
