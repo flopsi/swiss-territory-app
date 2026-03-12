@@ -1,5 +1,7 @@
 /**
- * api.js — Persistence layer using localStorage.
+ * api.js — Persistence layer using localStorage (static / GitHub Pages mode).
+ *
+ * The original Python backend is not available on GitHub Pages.
  * All state is stored in the browser via localStorage.
  */
 

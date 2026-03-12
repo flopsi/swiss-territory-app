@@ -45,26 +45,22 @@ function init() {
       updateLegend();
     });
 
+    buildZipDataMap();
     setupMap();
+    loadBoundaries();
+    populateSelects();
+    populateAMButtons();
     setupEventListeners();
     setupUploadEvents();
+    updateStats();
+    updateLegend();
+    renderAnomalyTable();
 
-    var data = getActiveData();
-    if (data && data.merged) {
-      buildZipDataMap();
-      loadBoundaries();
-      populateSelects();
-      populateAMButtons();
-      updateStats();
-      updateLegend();
-      renderAnomalyTable();
+    if (getUsingPersistedData()) {
       document.getElementById("lastUpdated").textContent = "Data: uploaded (persisted)";
       showResetDataButton();
     } else {
-      document.getElementById("lastUpdated").textContent = "No data loaded — upload CSVs to begin";
-      // Open the upload section automatically
-      var uploadDetails = document.querySelector('details:last-of-type');
-      if (uploadDetails) uploadDetails.open = true;
+      document.getElementById("lastUpdated").textContent = "Data: March 2026";
     }
   });
 }

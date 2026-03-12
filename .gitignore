@@ -22,10 +22,7 @@ Thumbs.db
 *.swo
 *~
 
-# Sensitive data files (never track)
-data/data.js
-data/ch-plz.js
-data/ch-plz.topojson
+# Server-side data (not used on GitHub Pages)
 server-data/
 .mcp.json
 

@@ -3,7 +3,7 @@
  */
 
 // ==================== Active Data ====================
-export var activeData = null;
+export var activeData = typeof APP_DATA !== "undefined" ? APP_DATA : (window.APP_DATA || null);
 export var _usingPersistedData = false;
 export var _savedStateLoaded = false;
 export var _savedUploadedAt = null;
