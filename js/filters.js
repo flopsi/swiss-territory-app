@@ -13,6 +13,15 @@ import { refreshStyles, renderTerritoryBorders } from "./map.js";
 export function populateSelects() {
   var data = getActiveData();
 
+  // Manager multi-select
+  var managerSelect = document.getElementById("filterManager");
+  data.managers.forEach(function (m) {
+    var opt = document.createElement("option");
+    opt.value = m;
+    opt.textContent = m;
+    managerSelect.appendChild(opt);
+  });
+
   // Territory select
   var territorySelect = document.getElementById("filterTerritory");
   data.territories.forEach(function (t) {
@@ -60,6 +69,19 @@ export function populateAMButtons() {
       '<span class="color-dot" style="background:' + color + '"></span>' +
       escapeHTML(m.split(" ")[0]);
     container.appendChild(btn);
+  });
+}
+
+// ==================== Sync AM Buttons ====================
+export function syncAMButtons() {
+  var btns = document.querySelectorAll("#amButtons .am-btn");
+  btns.forEach(function (btn) {
+    var mgr = btn.dataset.manager;
+    if (state.filterManagers.indexOf(mgr) >= 0) {
+      btn.classList.add("active");
+    } else {
+      btn.classList.remove("active");
+    }
   });
 }
 
