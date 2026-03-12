@@ -3,7 +3,7 @@
  */
 
 // ==================== Active Data ====================
-export var activeData = typeof APP_DATA !== "undefined" ? APP_DATA : (window.APP_DATA || null);
+export var activeData = null;
 export var _usingPersistedData = false;
 export var _savedStateLoaded = false;
 export var _savedUploadedAt = null;
@@ -161,6 +161,7 @@ export function isFiltered(entry) {
 // ==================== Build ZIP Data Map ====================
 export function buildZipDataMap() {
   var data = getActiveData();
+  if (!data) return;
   data.merged.forEach(function (entry) {
     state.zipDataMap[entry.postcode] = entry;
   });

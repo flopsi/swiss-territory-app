@@ -32,9 +32,10 @@ export function setupMap() {
 // ==================== Load TopoJSON Boundaries ====================
 export function loadBoundaries() {
   try {
-    var topo = typeof CH_PLZ_TOPOJSON !== "undefined" ? CH_PLZ_TOPOJSON : null;
+    var topo = window.CH_PLZ_TOPOJSON || null;
     if (!topo || !topo.objects || !topo.objects.plz) {
-      throw new Error("Bundled TopoJSON data is missing");
+      console.warn("No TopoJSON boundary data loaded. Upload data or provide ch-plz.js to enable the map.");
+      return;
     }
 
     var geojson = topojson.feature(topo, topo.objects.plz);

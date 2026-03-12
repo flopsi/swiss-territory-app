@@ -4,12 +4,12 @@ Interactive web app for visualizing Swiss sales territories by postcode. Display
 
 ## How to Use
 
-Open `index.html` in any modern browser. No server required — the app runs entirely in the browser as static HTML/CSS/JS.
-
-Alternatively, serve locally:
+Open `index.html` in any modern browser via a local web server:
 ```bash
 npx serve . -l 3000
 ```
+
+**No data is bundled.** On first load, upload your SFDC Accounts CSV and Territory CSV via the Upload Data panel. Uploaded data is persisted in browser `localStorage` for subsequent sessions.
 
 ### Selecting ZIPs
 
@@ -82,20 +82,7 @@ Four CSV export options are available:
 4. **SFDC-only ZIPs**: 84 postcodes in Salesforce but absent from master — tracked separately as anomalies
 
 ### Output
-- `data/data.js` — JavaScript object with merged records, SFDC-only anomalies, metadata, and color maps
-- `data/ch-plz.topojson` — Swiss postcode polygon boundaries (source: [mikpan/ch-maps](https://github.com/mikpan/ch-maps))
-
-## Data Summary
-
-| Metric | Count |
-|--------|-------|
-| Total master ZIPs | 3,190 |
-| Covered ZIPs (in SFDC) | 627 |
-| Potential ZIPs (not in SFDC) | 2,563 |
-| SFDC-only ZIPs (anomalies) | 84 |
-| Account Managers | 8 |
-| Territories | 8 |
-| Total SFDC accounts | 2,233 |
+Data is processed client-side in the browser and stored in `localStorage`. No data files are committed to the repository.
 
 ## Limitations & Caveats
 
@@ -148,21 +135,17 @@ For the full security audit and deployment details, see [HARDENING_REPORT.md](HA
 ## Project Structure
 
 ```
-swiss-territory-app-clean/
+swiss-territory-app/
 ├── index.html               # Entry point (with CSP and security headers)
 ├── style.css                # All styles
 ├── .nojekyll                # Prevents Jekyll processing on GitHub Pages
-├── .gitignore               # Excludes backend, DB, logs, secrets
-├── validate.sh              # Local validation script (26 checks)
+├── .gitignore               # Excludes backend, DB, logs, secrets, data
+├── validate.sh              # Local validation script
 ├── HARDENING_REPORT.md      # Security audit and deployment report
 ├── README.md                # This file
 ├── .github/
 │   └── workflows/
 │       └── ci.yml           # CI: secret scanning, structure checks
-├── data/
-│   ├── data.js             # Preprocessed data (auto-generated)
-│   ├── ch-plz.js           # Bundled Swiss PLZ boundaries for runtime
-│   └── ch-plz.topojson     # Source Swiss PLZ boundaries
 └── js/
     ├── app.js              # Bootstrap / init
     ├── state.js            # Central state and config

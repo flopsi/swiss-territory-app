@@ -168,7 +168,6 @@ export function refreshAppWithData(newData, options) {
 
   // Replace active dataset used by the app
   setActiveData(newData);
-  window.APP_DATA = newData;
 
   if (Object.prototype.hasOwnProperty.call(options, "excludedZips")) {
     state.excludedZips = options.excludedZips || {};
@@ -237,24 +236,21 @@ export function showResetDataButton() {
   btn.id = "btnResetData";
   btn.className = "export-btn export-btn-sm";
   btn.style.marginLeft = "8px";
-  btn.title = "Discard uploaded data and revert to bundled dataset";
-  btn.textContent = "Reset to bundled";
+  btn.title = "Clear uploaded data from browser storage";
+  btn.textContent = "Clear data";
   btn.addEventListener("click", function () {
-    if (!confirm("Revert to the bundled dataset? Uploaded data will be discarded.")) return;
+    if (!confirm("Clear all uploaded data? You will need to upload CSVs again.")) return;
     btn.disabled = true;
     clearPersistedDataset()
       .then(function () {
         setUsingPersistedData(false);
         setSavedUploadedAt(null);
         state.excludedZips = {};
-        var bundled = typeof APP_DATA !== "undefined" ? APP_DATA : (window.APP_DATA || null);
-        refreshAppWithData(bundled, { persist: false, label: "Data: March 2026", excludedZips: {} });
-        var rb = document.getElementById("btnResetData");
-        if (rb) rb.remove();
+        location.reload();
       })
       .catch(function (err) {
         btn.disabled = false;
-        alert("Could not reset saved data: " + err.message);
+        alert("Could not clear saved data: " + err.message);
       });
   });
   badge.parentNode.appendChild(btn);
