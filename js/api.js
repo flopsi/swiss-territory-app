@@ -59,6 +59,16 @@ export function login(username, password) {
   }).then(function (res) {
     if (!res.ok) return res.json().then(function (d) { throw new Error(d.error || "Login failed"); });
     return res.json();
+  }).then(function (data) {
+    // Verify the session cookie was actually set by probing /api/me
+    return fetch("/api/me", { credentials: "same-origin" })
+      .then(function (res) { return res.json(); })
+      .then(function (me) {
+        if (!me.authenticated) {
+          throw new Error("Login succeeded but session was not persisted. Check browser cookie settings.");
+        }
+        return data;
+      });
   });
 }
 

@@ -42,6 +42,12 @@ const SESSION_SECRET = process.env.SESSION_SECRET || "dev-secret-change-me";
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "").split(",").filter(Boolean);
 
 // --------------- Middleware ---------------
+// Trust Vercel's (and other reverse proxies') X-Forwarded-* headers so that
+// req.secure / req.protocol reflect the real client connection.  Without this,
+// cookie-session silently refuses to set Secure cookies because the last hop
+// between the proxy and the serverless function is plain HTTP.
+app.set("trust proxy", 1);
+
 app.use(
   helmet({
     contentSecurityPolicy: {
