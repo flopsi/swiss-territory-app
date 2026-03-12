@@ -1,0 +1,9 @@
+{
+  "name": "swiss-territory-planner",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Swiss Territory Planner — postcode coverage and territory visualization",
+  "scripts": {
+    "validate": "bash validate.sh"
+  }
+}

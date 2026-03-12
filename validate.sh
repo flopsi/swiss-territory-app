@@ -16,14 +16,24 @@ warn() { echo "  WARN: $1"; WARN=$((WARN + 1)); }
 echo "=== Swiss Territory Planner — Validation ==="
 echo ""
 
-# 1. Required files
+# 1. Required files (backend-first: no bundled data files)
 echo "[1] Required files..."
-for f in index.html style.css data/data.js data/ch-plz.js .nojekyll .gitignore; do
+for f in index.html style.css .nojekyll .gitignore; do
   if [ -f "$f" ]; then pass "$f exists"; else fail "$f missing"; fi
 done
 for f in js/app.js js/state.js js/api.js js/map.js js/filters.js js/zefix.js js/exports.js js/uploads.js js/utils.js; do
   if [ -f "$f" ]; then pass "$f exists"; else fail "$f missing"; fi
 done
+
+# 1b. Confirm no bundled sensitive data (backend-first architecture)
+for f in data/data.js data/ch-plz.js; do
+  if [ -f "$f" ]; then fail "$f should not be committed (sensitive data)"; else pass "$f correctly absent"; fi
+done
+if [ -d "server-data" ]; then
+  fail "server-data/ directory should not be committed"
+else
+  pass "server-data/ correctly absent"
+fi
 
 # 2. Security checks
 echo ""
@@ -63,27 +73,17 @@ else
   pass "No backend URL references in frontend"
 fi
 
-# 4. No backend files committed
+# 4. Deployment safety — .gitignore excludes sensitive files
 echo ""
 echo "[4] Deployment safety..."
 
-if grep -q 'swiss_territory_state.db' .gitignore; then
-  pass ".gitignore excludes database"
-else
-  fail ".gitignore does not exclude database"
-fi
-
-if grep -q 'api_server.py' .gitignore; then
-  pass ".gitignore excludes api_server.py"
-else
-  fail ".gitignore does not exclude api_server.py"
-fi
-
-if grep -q '\.env' .gitignore; then
-  pass ".gitignore excludes .env"
-else
-  fail ".gitignore does not exclude .env"
-fi
+for pattern in 'swiss_territory_state.db' 'api_server.py' '\.env' 'data/data.js' 'data/ch-plz.js'; do
+  if grep -q "$pattern" .gitignore; then
+    pass ".gitignore excludes $pattern"
+  else
+    fail ".gitignore does not exclude $pattern"
+  fi
+done
 
 # 5. JS module imports valid
 echo ""

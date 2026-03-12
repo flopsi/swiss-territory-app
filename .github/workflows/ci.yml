@@ -15,73 +15,122 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check for secrets or credentials in source
+      # ── 1. Secret scanning ──────────────────────────────────────
+      - name: Scan for hardcoded secrets
         run: |
           echo "Scanning for potential secrets..."
-          # Fail if any password/secret/token patterns found in JS/HTML files
           if grep -rEi '(password|secret|api_key|token)\s*[:=]\s*["\x27][^\s"'\'']{6,}' \
                --include='*.js' --include='*.html' --include='*.json' .; then
             echo "::error::Potential hardcoded secret found in source files!"
             exit 1
           fi
+          if grep -rn 'UPLOAD_PASSWORD\|swissterritory2026' js/ index.html 2>/dev/null; then
+            echo "::error::Hardcoded password found!"
+            exit 1
+          fi
           echo "No secrets detected."
 
-      - name: Validate HTML structure
+      # ── 2. Node setup (for future tooling / dependency install) ─
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
         run: |
-          echo "Checking index.html exists and has basic structure..."
+          if [ -f package.json ]; then
+            npm ci --ignore-scripts
+          else
+            echo "No package.json — skipping npm install (vanilla JS project)"
+          fi
+
+      # ── 3. HTML & security header validation ────────────────────
+      - name: Validate HTML structure and security headers
+        run: |
           test -f index.html || { echo "::error::index.html not found"; exit 1; }
           grep -q '<!DOCTYPE html>' index.html || { echo "::error::Missing DOCTYPE"; exit 1; }
           grep -q 'Content-Security-Policy' index.html || { echo "::error::Missing CSP meta tag"; exit 1; }
           grep -q 'X-Content-Type-Options' index.html || { echo "::error::Missing X-Content-Type-Options"; exit 1; }
-          echo "HTML structure OK."
+          grep -q 'referrer' index.html || { echo "::warning::Missing referrer policy"; }
+          echo "HTML structure and security headers OK."
 
+      # ── 4. JS module and asset checks ───────────────────────────
       - name: Validate JS modules exist
         run: |
-          echo "Checking all required JS modules..."
+          echo "Checking required JS modules..."
           for f in js/app.js js/state.js js/api.js js/map.js js/filters.js js/zefix.js js/exports.js js/uploads.js js/utils.js; do
             test -f "$f" || { echo "::error::Missing $f"; exit 1; }
           done
           echo "All JS modules present."
 
-      - name: Validate data files exist
+      - name: Validate JS imports resolve
         run: |
-          echo "Checking data files..."
-          test -f data/data.js || { echo "::error::Missing data/data.js"; exit 1; }
-          test -f data/ch-plz.js || { echo "::error::Missing data/ch-plz.js"; exit 1; }
-          echo "Data files OK."
+          echo "Checking JS import references..."
+          ERRORS=0
+          for f in js/*.js; do
+            while IFS= read -r line; do
+              path=$(echo "$line" | sed -n 's/.*from\s*"\(.*\)".*/\1/p')
+              [ -z "$path" ] && path=$(echo "$line" | sed -n "s/.*from\s*'\(.*\)'.*/\1/p")
+              if [ -n "$path" ]; then
+                resolved="js/$(echo "$path" | sed 's|^\./||')"
+                if [ ! -f "$resolved" ]; then
+                  echo "::error::Broken import in $f: $path → $resolved"
+                  ERRORS=$((ERRORS + 1))
+                fi
+              fi
+            done < <(grep -n '^\s*import' "$f" 2>/dev/null || true)
+          done
+          if [ "$ERRORS" -gt 0 ]; then
+            echo "::error::$ERRORS broken JS import(s) found"
+            exit 1
+          fi
+          echo "All JS imports resolve correctly."
 
-      - name: Check no backend dependencies in JS
+      # ── 5. Backend-first architecture checks ────────────────────
+      - name: Confirm no bundled sensitive data
         run: |
-          echo "Verifying no backend API calls remain in JS..."
-          if grep -rn 'localhost:8000\|__PORT_8000__\|api_server\|uvicorn\|fastapi' js/ index.html; then
+          echo "Verifying no static data files are committed..."
+          for f in data/data.js data/ch-plz.js; do
+            if [ -f "$f" ]; then
+              echo "::error::$f should not be committed — sensitive data belongs on the server"
+              exit 1
+            fi
+          done
+          if [ -d "server-data" ]; then
+            echo "::error::server-data/ directory should not be committed"
+            exit 1
+          fi
+          echo "No bundled sensitive data — backend-first architecture OK."
+
+      - name: Verify no backend API references in frontend
+        run: |
+          if grep -rn 'localhost:8000\|__PORT_8000__\|uvicorn\|fastapi' js/ index.html 2>/dev/null; then
             echo "::error::Backend dependency references found in frontend code!"
             exit 1
           fi
-          echo "No backend dependencies in frontend code."
+          echo "No backend API references in frontend code."
 
-      - name: Check no hardcoded passwords
-        run: |
-          echo "Checking for hardcoded passwords..."
-          if grep -rn 'UPLOAD_PASSWORD\|swissterritory2026' js/ index.html; then
-            echo "::error::Hardcoded password found!"
-            exit 1
-          fi
-          echo "No hardcoded passwords."
-
+      # ── 6. .gitignore safety ────────────────────────────────────
       - name: Verify .gitignore excludes sensitive files
         run: |
-          echo "Checking .gitignore..."
           test -f .gitignore || { echo "::error::Missing .gitignore"; exit 1; }
-          grep -q 'swiss_territory_state.db' .gitignore || { echo "::error::.gitignore missing db exclusion"; exit 1; }
-          grep -q 'api_server.py' .gitignore || { echo "::error::.gitignore missing api_server exclusion"; exit 1; }
-          grep -q '\.env' .gitignore || { echo "::error::.gitignore missing .env exclusion"; exit 1; }
+          for pattern in swiss_territory_state.db api_server.py '.env' 'data/data.js' 'data/ch-plz.js'; do
+            grep -q "$pattern" .gitignore || { echo "::error::.gitignore missing exclusion for $pattern"; exit 1; }
+          done
           echo ".gitignore OK."
 
-      - name: Check file sizes (no large binaries)
+      # ── 7. File size guard ──────────────────────────────────────
+      - name: Check for oversized files
         run: |
-          echo "Checking for oversized files..."
-          MAX_SIZE=6000000  # 6MB
-          find . -type f -not -path './.git/*' -size +${MAX_SIZE}c | while read f; do
-            echo "::warning::Large file detected: $f ($(stat -c%s "$f") bytes)"
-          done
+          MAX_SIZE=6000000  # 6 MB
+          OVERSIZED=$(find . -type f -not -path './.git/*' -size +${MAX_SIZE}c 2>/dev/null || true)
+          if [ -n "$OVERSIZED" ]; then
+            echo "$OVERSIZED" | while read -r f; do
+              echo "::warning::Large file: $f ($(stat -c%s "$f") bytes)"
+            done
+          fi
           echo "File size check complete."
+
+      # ── 8. Run validate.sh (aggregated check) ──────────────────
+      - name: Run validation script
+        run: bash validate.sh
