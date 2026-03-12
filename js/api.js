@@ -61,3 +61,12 @@ export function clearPersistedDataset() {
   removeLS(LS_KEY_EXCLUDED);
   return Promise.resolve(null);
 }
+
+/**
+ * apiRequest — stub for backend API calls.
+ * The original Python backend is not available on GitHub Pages,
+ * so this returns a rejected promise with a helpful message.
+ */
+export function apiRequest(url, options) {
+  return Promise.reject(new Error("Backend API is not available on GitHub Pages (requested " + url + ")"));
+}
