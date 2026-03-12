@@ -88,13 +88,13 @@ jobs:
           fi
           echo "All JS imports resolve correctly."
 
-      # ── 5. Backend-first architecture checks ────────────────────
-      - name: Confirm no bundled sensitive data
+      # ── 5. Static data and architecture checks ────────────────────
+      - name: Confirm required data files exist
         run: |
-          echo "Verifying no static data files are committed..."
-          for f in data/data.js data/ch-plz.js; do
-            if [ -f "$f" ]; then
-              echo "::error::$f should not be committed — sensitive data belongs on the server"
+          echo "Verifying bundled data files are present..."
+          for f in data/data.js data/ch-plz.js data/ch-plz.topojson; do
+            if [ ! -f "$f" ]; then
+              echo "::error::$f is missing — required for GitHub Pages"
               exit 1
             fi
           done
@@ -102,7 +102,7 @@ jobs:
             echo "::error::server-data/ directory should not be committed"
             exit 1
           fi
-          echo "No bundled sensitive data — backend-first architecture OK."
+          echo "Required data files present."
 
       - name: Verify no backend API references in frontend
         run: |
@@ -116,7 +116,7 @@ jobs:
       - name: Verify .gitignore excludes sensitive files
         run: |
           test -f .gitignore || { echo "::error::Missing .gitignore"; exit 1; }
-          for pattern in swiss_territory_state.db api_server.py '.env' 'data/data.js' 'data/ch-plz.js'; do
+          for pattern in swiss_territory_state.db api_server.py '.env'; do
             grep -q "$pattern" .gitignore || { echo "::error::.gitignore missing exclusion for $pattern"; exit 1; }
           done
           echo ".gitignore OK."

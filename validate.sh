@@ -25,9 +25,9 @@ for f in js/app.js js/state.js js/api.js js/map.js js/filters.js js/zefix.js js/
   if [ -f "$f" ]; then pass "$f exists"; else fail "$f missing"; fi
 done
 
-# 1b. Confirm no bundled sensitive data (backend-first architecture)
-for f in data/data.js data/ch-plz.js; do
-  if [ -f "$f" ]; then fail "$f should not be committed (sensitive data)"; else pass "$f correctly absent"; fi
+# 1b. Confirm bundled data files are present (required for GitHub Pages)
+for f in data/data.js data/ch-plz.js data/ch-plz.topojson; do
+  if [ -f "$f" ]; then pass "$f exists"; else fail "$f missing (required for map)"; fi
 done
 if [ -d "server-data" ]; then
   fail "server-data/ directory should not be committed"
@@ -77,7 +77,7 @@ fi
 echo ""
 echo "[4] Deployment safety..."
 
-for pattern in 'swiss_territory_state.db' 'api_server.py' '\.env' 'data/data.js' 'data/ch-plz.js'; do
+for pattern in 'swiss_territory_state.db' 'api_server.py' '\.env'; do
   if grep -q "$pattern" .gitignore; then
     pass ".gitignore excludes $pattern"
   else
