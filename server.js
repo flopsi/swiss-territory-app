@@ -17,10 +17,19 @@ const cookieParser = require("cookie-parser");
 const bcryptjs = require("bcryptjs");
 const path = require("path");
 const fs = require("fs");
+const rateLimit = require("express-rate-limit");
 
 const app = express();
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const IS_VERCEL = !!process.env.VERCEL;
+
+// Rate limiter for filesystem-based dataset metadata endpoint
+const datasetMetaLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  standardHeaders: true, // Return rate limit info in the RateLimit-* headers
+  legacyHeaders: false, // Disable the deprecated X-RateLimit-* headers
+});
 
 // --------------- Environment ---------------
 const ADMIN_USER = process.env.ADMIN_USER || "admin";
@@ -302,7 +311,7 @@ if (IS_VERCEL) {
   });
 }
 
-app.get("/api/dataset-meta", requireAuth, function (_req, res) {
+app.get("/api/dataset-meta", requireAuth, datasetMetaLimiter, function (_req, res) {
   if (IS_VERCEL) {
     return res.json({ uploaded_at: null });
   }
