@@ -162,11 +162,7 @@ function initApp() {
       setUsingPersistedData(true);
     }
 
-    // Fall back to global APP_DATA if nothing loaded
-    if (!getActiveData()) {
-      var fallback = typeof APP_DATA !== "undefined" ? APP_DATA : (window.APP_DATA || null);
-      if (fallback) setActiveData(fallback);
-    }
+    // In backend mode, data must come from the API — no global fallback
 
     if (!getActiveData()) {
       document.getElementById("lastUpdated").textContent = "No data available. Please upload.";

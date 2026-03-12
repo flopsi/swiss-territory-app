@@ -117,8 +117,8 @@ export function loadAppData() {
         return res.json();
       });
   }
-  // Static mode: data loaded via global script tag
-  return Promise.resolve(typeof APP_DATA !== "undefined" ? APP_DATA : (window.APP_DATA || null));
+  // Static mode: no data available without backend
+  return Promise.resolve(null);
 }
 
 export function loadTopoJSON() {
@@ -129,8 +129,8 @@ export function loadTopoJSON() {
         return res.json();
       });
   }
-  // Static mode: loaded via global script tag
-  return Promise.resolve(typeof CH_PLZ_TOPOJSON !== "undefined" ? CH_PLZ_TOPOJSON : null);
+  // Static mode: no TopoJSON available without backend
+  return Promise.resolve(null);
 }
 
 // ---------- Saved state (excluded + dataset) ----------
@@ -195,6 +195,18 @@ export function clearPersistedDataset() {
   removeLS(LS_KEY_UPLOADED_AT);
   removeLS(LS_KEY_EXCLUDED);
   return Promise.resolve(null);
+}
+
+// ---------- Generic authenticated request helper ----------
+export function apiRequest(url, options) {
+  var opts = options || {};
+  opts.credentials = "same-origin";
+  if (!opts.headers) opts.headers = {};
+  opts.headers["X-CSRF-Token"] = getCsrfToken();
+  return fetch(url, opts).then(function (res) {
+    if (!res.ok) return res.json().then(function (d) { throw new Error(d.error || "Request failed: " + res.status); });
+    return res.json();
+  });
 }
 
 // ---------- Upload excluded ZIPs (backend only) ----------
