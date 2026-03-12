@@ -1,14 +1,81 @@
 /**
- * api.js — Persistence layer using localStorage (static / GitHub Pages mode).
+ * api.js — Persistence layer.
  *
- * The original Python backend is not available on GitHub Pages.
- * All state is stored in the browser via localStorage.
+ * Supports two modes:
+ *   1. Backend mode (default): Uses authenticated Express API endpoints.
+ *   2. Static mode (fallback): Uses localStorage when no backend is available.
+ *
+ * The mode is auto-detected by probing /api/me on startup.
  */
 
 var LS_KEY_EXCLUDED = "swiss_territory_excluded";
 var LS_KEY_DATASET = "swiss_territory_dataset";
 var LS_KEY_UPLOADED_AT = "swiss_territory_uploaded_at";
 
+// ---------- Mode detection ----------
+var _backendAvailable = null; // null = not checked, true/false after probe
+
+export function isBackendMode() {
+  return _backendAvailable === true;
+}
+
+export function probeBackend() {
+  return fetch("/api/me", { credentials: "same-origin" })
+    .then(function (res) {
+      if (res.ok) {
+        _backendAvailable = true;
+        return res.json();
+      }
+      _backendAvailable = false;
+      return { authenticated: false };
+    })
+    .catch(function () {
+      _backendAvailable = false;
+      return { authenticated: false };
+    });
+}
+
+// ---------- CSRF helper ----------
+function getCsrfToken() {
+  var match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
+  return match ? match[1] : "";
+}
+
+function authHeaders(extra) {
+  var h = { "Content-Type": "application/json", "X-CSRF-Token": getCsrfToken() };
+  if (extra) {
+    Object.keys(extra).forEach(function (k) { h[k] = extra[k]; });
+  }
+  return h;
+}
+
+// ---------- Auth endpoints ----------
+export function login(username, password) {
+  return fetch("/api/login", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username: username, password: password }),
+  }).then(function (res) {
+    if (!res.ok) return res.json().then(function (d) { throw new Error(d.error || "Login failed"); });
+    return res.json();
+  });
+}
+
+export function logout() {
+  return fetch("/api/logout", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: authHeaders(),
+  }).then(function (res) { return res.json(); });
+}
+
+export function checkAuth() {
+  return fetch("/api/me", { credentials: "same-origin" })
+    .then(function (res) { return res.json(); });
+}
+
+// ---------- localStorage helpers (static mode) ----------
 function readLS(key) {
   try {
     var raw = localStorage.getItem(key);
@@ -28,14 +95,49 @@ function writeLS(key, value) {
 }
 
 function removeLS(key) {
-  try {
-    localStorage.removeItem(key);
-  } catch (e) {
-    // ignore
-  }
+  try { localStorage.removeItem(key); } catch (e) { /* ignore */ }
 }
 
+// ---------- Data loading ----------
+export function loadAppData() {
+  if (_backendAvailable) {
+    return fetch("/api/data", { credentials: "same-origin" })
+      .then(function (res) {
+        if (!res.ok) throw new Error("Failed to load data: " + res.status);
+        return res.json();
+      });
+  }
+  // Static mode: data loaded via global script tag
+  return Promise.resolve(typeof APP_DATA !== "undefined" ? APP_DATA : (window.APP_DATA || null));
+}
+
+export function loadTopoJSON() {
+  if (_backendAvailable) {
+    return fetch("/api/topojson", { credentials: "same-origin" })
+      .then(function (res) {
+        if (!res.ok) throw new Error("Failed to load TopoJSON: " + res.status);
+        return res.json();
+      });
+  }
+  // Static mode: loaded via global script tag
+  return Promise.resolve(typeof CH_PLZ_TOPOJSON !== "undefined" ? CH_PLZ_TOPOJSON : null);
+}
+
+// ---------- Saved state (excluded + dataset) ----------
 export function loadSavedState() {
+  if (_backendAvailable) {
+    return Promise.all([
+      fetch("/api/excluded", { credentials: "same-origin" }).then(function (r) { return r.json(); }).catch(function () { return {}; }),
+      fetch("/api/dataset-meta", { credentials: "same-origin" }).then(function (r) { return r.json(); }).catch(function () { return { uploaded_at: null }; }),
+    ]).then(function (results) {
+      return {
+        dataset: null, // data loaded separately via loadAppData
+        excluded_zips: results[0] || {},
+        uploaded_at: results[1].uploaded_at || null,
+      };
+    });
+  }
+  // Static mode: localStorage
   return Promise.resolve({
     dataset: readLS(LS_KEY_DATASET),
     excluded_zips: readLS(LS_KEY_EXCLUDED) || {},
@@ -44,11 +146,27 @@ export function loadSavedState() {
 }
 
 export function saveExcluded(map) {
+  if (_backendAvailable) {
+    return fetch("/api/excluded", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: authHeaders(),
+      body: JSON.stringify(map || {}),
+    }).then(function (r) { return r.json(); });
+  }
   writeLS(LS_KEY_EXCLUDED, map || {});
   return Promise.resolve({ saved: true });
 }
 
 export function saveDatasetToServer(data) {
+  if (_backendAvailable) {
+    return fetch("/api/dataset", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: authHeaders(),
+      body: JSON.stringify(data),
+    }).then(function (r) { return r.json(); });
+  }
   var now = new Date().toISOString();
   writeLS(LS_KEY_DATASET, data);
   writeLS(LS_KEY_UPLOADED_AT, now);
@@ -56,17 +174,31 @@ export function saveDatasetToServer(data) {
 }
 
 export function clearPersistedDataset() {
+  if (_backendAvailable) {
+    return fetch("/api/dataset", {
+      method: "DELETE",
+      credentials: "same-origin",
+      headers: authHeaders(),
+    }).then(function (r) { return r.json(); });
+  }
   removeLS(LS_KEY_DATASET);
   removeLS(LS_KEY_UPLOADED_AT);
   removeLS(LS_KEY_EXCLUDED);
   return Promise.resolve(null);
 }
 
-/**
- * apiRequest — stub for backend API calls.
- * The original Python backend is not available on GitHub Pages,
- * so this returns a rejected promise with a helpful message.
- */
-export function apiRequest(url, options) {
-  return Promise.reject(new Error("Backend API is not available on GitHub Pages (requested " + url + ")"));
+// ---------- Upload excluded ZIPs (backend only) ----------
+export function uploadExcludedZips(zipArray) {
+  if (!_backendAvailable) {
+    return Promise.reject(new Error("Backend not available for ZIP upload"));
+  }
+  return fetch("/api/upload-excluded", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: authHeaders(),
+    body: JSON.stringify({ zips: zipArray }),
+  }).then(function (r) {
+    if (!r.ok) return r.json().then(function (d) { throw new Error(d.error || "Upload failed"); });
+    return r.json();
+  });
 }

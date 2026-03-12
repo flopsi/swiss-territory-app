@@ -16,7 +16,7 @@ warn() { echo "  WARN: $1"; WARN=$((WARN + 1)); }
 echo "=== Swiss Territory Planner — Validation ==="
 echo ""
 
-# 1. Required files (backend-first: no bundled data files)
+# 1. Required files
 echo "[1] Required files..."
 for f in index.html style.css .nojekyll .gitignore; do
   if [ -f "$f" ]; then pass "$f exists"; else fail "$f missing"; fi
@@ -25,15 +25,15 @@ for f in js/app.js js/state.js js/api.js js/map.js js/filters.js js/zefix.js js/
   if [ -f "$f" ]; then pass "$f exists"; else fail "$f missing"; fi
 done
 
-# 1b. Confirm bundled data files are present (required for GitHub Pages)
+# 1b. Bundled data files (required for static fallback mode)
 for f in data/data.js data/ch-plz.js data/ch-plz.topojson; do
-  if [ -f "$f" ]; then pass "$f exists"; else fail "$f missing (required for map)"; fi
+  if [ -f "$f" ]; then pass "$f exists"; else fail "$f missing (required for static fallback)"; fi
 done
-if [ -d "server-data" ]; then
-  fail "server-data/ directory should not be committed"
-else
-  pass "server-data/ correctly absent"
-fi
+
+# 1c. Server files (expected for server deployment)
+for f in server.js package.json .env.example; do
+  if [ -f "$f" ]; then pass "$f exists"; else warn "$f missing (needed for server deployment)"; fi
+done
 
 # 2. Security checks
 echo ""
@@ -68,22 +68,28 @@ else
 fi
 
 if grep -rn 'localhost:8000\|__PORT_8000__' js/ index.html 2>/dev/null; then
-  fail "Backend URL references found"
+  fail "Legacy backend URL references found"
 else
-  pass "No backend URL references in frontend"
+  pass "No legacy backend URL references in frontend"
 fi
 
-# 4. Deployment safety — .gitignore excludes sensitive files
+# 4. Deployment safety
 echo ""
 echo "[4] Deployment safety..."
 
-for pattern in 'swiss_territory_state.db' 'api_server.py' '\.env'; do
+for pattern in 'swiss_territory_state.db' 'api_server.py' '\.env' 'server-data'; do
   if grep -q "$pattern" .gitignore; then
     pass ".gitignore excludes $pattern"
   else
     fail ".gitignore does not exclude $pattern"
   fi
 done
+
+if [ -d "server-data" ]; then
+  fail "server-data/ directory should not be committed"
+else
+  pass "server-data/ correctly absent from repo"
+fi
 
 # 5. JS module imports valid
 echo ""

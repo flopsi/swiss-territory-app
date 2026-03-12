@@ -30,7 +30,7 @@ jobs:
           fi
           echo "No secrets detected."
 
-      # ── 2. Node setup (for future tooling / dependency install) ─
+      # ── 2. Node setup & dependencies ───────────────────────────
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -43,7 +43,7 @@ jobs:
           elif [ -f package.json ]; then
             npm install --ignore-scripts
           else
-            echo "No package.json — skipping npm install (vanilla JS project)"
+            echo "No package.json — skipping npm install"
           fi
 
       # ── 3. HTML & security header validation ────────────────────
@@ -88,13 +88,13 @@ jobs:
           fi
           echo "All JS imports resolve correctly."
 
-      # ── 5. Static data and architecture checks ────────────────────
+      # ── 5. Data files and deployment safety ─────────────────────
       - name: Confirm required data files exist
         run: |
           echo "Verifying bundled data files are present..."
           for f in data/data.js data/ch-plz.js data/ch-plz.topojson; do
             if [ ! -f "$f" ]; then
-              echo "::error::$f is missing — required for GitHub Pages"
+              echo "::error::$f is missing — required for static fallback"
               exit 1
             fi
           done
@@ -104,19 +104,19 @@ jobs:
           fi
           echo "Required data files present."
 
-      - name: Verify no backend API references in frontend
+      - name: Verify no legacy backend references in frontend
         run: |
-          if grep -rn 'localhost:8000\|__PORT_8000__\|uvicorn\|fastapi' js/ index.html 2>/dev/null; then
-            echo "::error::Backend dependency references found in frontend code!"
+          if grep -rn 'localhost:8000\|__PORT_8000__\|uvicorn\|fastapi\|api_server' js/ index.html 2>/dev/null; then
+            echo "::error::Legacy backend references found in frontend code!"
             exit 1
           fi
-          echo "No backend API references in frontend code."
+          echo "No legacy backend references in frontend code."
 
       # ── 6. .gitignore safety ────────────────────────────────────
       - name: Verify .gitignore excludes sensitive files
         run: |
           test -f .gitignore || { echo "::error::Missing .gitignore"; exit 1; }
-          for pattern in swiss_territory_state.db api_server.py '.env'; do
+          for pattern in swiss_territory_state.db api_server.py '.env' 'server-data'; do
             grep -q "$pattern" .gitignore || { echo "::error::.gitignore missing exclusion for $pattern"; exit 1; }
           done
           echo ".gitignore OK."

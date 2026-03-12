@@ -67,6 +67,7 @@
       </div>
       <div class="header-right">
         <span class="header-badge" id="lastUpdated"></span>
+        <button class="export-btn export-btn-sm" id="btnLogout" style="display:none;margin-left:8px;" title="Logout">Logout</button>
       </div>
     </header>
 
@@ -187,6 +188,19 @@
             </div>
           </div>
         </details>
+
+        <!-- Excluded ZIP upload (backend mode only) -->
+        <div id="excludedUploadSection" style="display:none;" class="sidebar-section">
+          <div class="section-heading">UPLOAD EXCLUDED ZIPS</div>
+          <div class="section-body">
+            <label class="filter-label" for="fileExcluded">CSV or TXT file
+              <span class="filter-hint">(one ZIP per line, or comma-separated)</span>
+            </label>
+            <input type="file" id="fileExcluded" accept=".csv,.txt" class="upload-file-input">
+            <button class="export-btn upload-process-btn" id="btnUploadExcluded">Upload Excluded ZIPs</button>
+            <p class="upload-hint" id="excludedUploadStatus"></p>
+          </div>
+        </div>
       </aside>
 
       <!-- Map area -->
@@ -274,6 +288,10 @@
         </div>
         <div class="zefix-status" id="zefixStatus"></div>
         <div class="zefix-status" id="notionQueueStatus" style="display:none;"></div>
+        <div class="zefix-filter-bar">
+          <input type="text" id="zefixPurposeFilter" class="filter-select" placeholder="Filter by purpose or name keywords (comma-separated)" style="flex:1;">
+          <span id="zefixFilterCount" class="filter-hint" style="white-space:nowrap;"></span>
+        </div>
         <div class="zefix-table-wrap" id="zefixTableWrap">
           <table class="zefix-table" id="zefixTable">
             <thead>
@@ -308,6 +326,26 @@
       <span>&copy; 2026 Swiss Territory Planner</span>
       <a href="https://www.perplexity.ai/computer" target="_blank" rel="noopener noreferrer">Created with Perplexity Computer</a>
     </footer>
+  </div>
+
+  <!-- Login overlay (hidden unless backend requires auth) -->
+  <div id="loginOverlay" class="login-overlay" style="display:none;">
+    <form id="loginForm" class="login-card">
+      <div class="login-logo">
+        <svg viewBox="0 0 32 32" width="48" height="48">
+          <rect x="2" y="2" width="28" height="28" rx="4" fill="#D32F2F"/>
+          <rect x="13" y="7" width="6" height="18" rx="1" fill="#fff"/>
+          <rect x="7" y="13" width="18" height="6" rx="1" fill="#fff"/>
+        </svg>
+      </div>
+      <h2 class="login-title">Swiss Territory Planner</h2>
+      <label class="filter-label" for="loginUser">Username</label>
+      <input type="text" id="loginUser" class="filter-select" required autocomplete="username">
+      <label class="filter-label" for="loginPass">Password</label>
+      <input type="password" id="loginPass" class="filter-select" required autocomplete="current-password">
+      <p id="loginError" class="upload-hint upload-error"></p>
+      <button type="submit" class="export-btn upload-process-btn" style="margin-top:8px;">Login</button>
+    </form>
   </div>
 
   <script src="./data/data.js"></script>
