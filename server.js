@@ -104,23 +104,18 @@ function readOnlyGuard(_req, res) {
 }
 
 // --------------- Static files ---------------
-// Serve frontend files EXCEPT the data directory (sensitive)
-app.use(
-  express.static(path.join(__dirname), {
-    index: "index.html",
-    // Block direct access to data/ directory
-    setHeaders: function (res, filePath) {
-      if (filePath.includes(path.join(__dirname, "data"))) {
-        res.status(403);
-      }
-    },
-  })
-);
-
-// Explicitly block data directory from static serving
+// Block direct access to data/ directory BEFORE static middleware
+// (express.static's setHeaders only sets status but still sends the file body)
 app.use("/data", function (_req, res) {
   res.status(403).json({ error: "Access denied. Use authenticated API endpoints." });
 });
+
+// Serve frontend files (data/ is already blocked above)
+app.use(
+  express.static(path.join(__dirname), {
+    index: "index.html",
+  })
+);
 
 // --------------- Auth endpoints ---------------
 app.post("/api/login", function (req, res) {

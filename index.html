@@ -328,8 +328,8 @@
     </footer>
   </div>
 
-  <!-- Login overlay (hidden unless backend requires auth) -->
-  <div id="loginOverlay" class="login-overlay" style="display:none;">
+  <!-- Login overlay (visible by default; hidden by JS when auth succeeds or no backend) -->
+  <div id="loginOverlay" class="login-overlay" style="display:flex;">
     <form id="loginForm" class="login-card">
       <div class="login-logo">
         <svg viewBox="0 0 32 32" width="48" height="48">
