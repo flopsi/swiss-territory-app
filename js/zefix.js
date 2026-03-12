@@ -4,8 +4,7 @@
 
 import { state, getActiveData, ZEFIX_COLUMNS } from "./state.js";
 import { escapeHTML, downloadCSV } from "./utils.js";
-
-var LS_KEY_NOTION_BATCH = "swiss_territory_notion_batch";
+import { apiRequest } from "./api.js";
 
 // ==================== SPARQL / ZEFIX Query ====================
 export function queryZefix() {
@@ -103,7 +102,7 @@ export function renderZefixTable() {
     var tr = document.createElement("tr");
     var uidDisplay = r.uid || "\u2014";
     var orgId = r.org.split("/").pop();
-    var zefixLink = "https://www.zefix.ch/en/search/entity/list/firm/" + encodeURIComponent(orgId);
+    var zefixLink = "https://www.zefix.ch/en/search/entity/list/firm/" + orgId;
 
     // Build expandable purpose cell with 140-char preview truncation
     var purposeHTML;
@@ -128,7 +127,7 @@ export function renderZefixTable() {
       "<td>" + escapeHTML(r.postalCode) + "</td>" +
       "<td>" + escapeHTML(r.locality) + "</td>" +
       "<td>" + escapeHTML(uidDisplay) + "</td>" +
-      '<td><a href="' + escapeHTML(zefixLink) + '" target="_blank" rel="noopener noreferrer" class="zefix-link">ZEFIX</a></td>';
+      '<td><a href="' + zefixLink + '" target="_blank" rel="noopener noreferrer" class="zefix-link">ZEFIX</a></td>';
     tbody.appendChild(tr);
   });
 
@@ -192,10 +191,8 @@ export function queueSelectedZefixForNotion() {
   var now = new Date();
   var stamp = now.toISOString().replace(/\.\d{3}Z$/, "Z");
   var batchName = "Swiss Territory ZEFIX Export " + stamp;
-  var batchId = "batch-" + stamp.replace(/[:\-]/g, "");
   var payload = {
     batch_name: batchName,
-    batch_id: batchId,
     source: "Swiss Territory Planner",
     items: selected.map(function (r) {
       var orgId = (r.org || "").split("/").pop();
@@ -205,19 +202,25 @@ export function queueSelectedZefixForNotion() {
         locality: r.locality || "",
         uid: r.uid || "",
         purpose: r.purpose || "",
-        zefix_url: orgId ? ("https://www.zefix.ch/en/search/entity/list/firm/" + encodeURIComponent(orgId)) : (r.org || ""),
+        zefix_url: orgId ? ("https://www.zefix.ch/en/search/entity/list/firm/" + orgId) : (r.org || ""),
         selected_at: stamp,
       };
     }),
   };
 
-  try {
-    localStorage.setItem(LS_KEY_NOTION_BATCH, JSON.stringify(payload));
-    showNotionQueueStatus(
-      "Queued " + selected.length + " companies locally (batch " + batchId + "). Export via CSV for manual Notion import.",
-      "zefix-success"
-    );
-  } catch (err) {
-    showNotionQueueStatus("Could not save the Notion batch locally: " + err.message, "zefix-error");
-  }
+  showNotionQueueStatus("Saving checked companies for manual Notion push...", "zefix-loading");
+  apiRequest("/api/notion-batch", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  })
+    .then(function (result) {
+      showNotionQueueStatus(
+        "Queued " + selected.length + " companies. Manual trigger ready: " + result.batch_id + ". Tell Computer to push the current Notion batch.",
+        "zefix-success"
+      );
+    })
+    .catch(function (err) {
+      showNotionQueueStatus("Could not queue the Notion batch: " + err.message, "zefix-error");
+    });
 }
