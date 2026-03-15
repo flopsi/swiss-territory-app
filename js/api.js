@@ -162,7 +162,16 @@ export function saveExcluded(map) {
       credentials: "same-origin",
       headers: authHeaders(),
       body: JSON.stringify(map || {}),
-    }).then(function (r) { return r.json(); });
+    }).then(function (r) {
+      if (!r.ok) {
+        return r.text().then(function (text) {
+          var msg = "Save failed (" + r.status + ")";
+          try { var d = JSON.parse(text); if (d.error) msg = d.error; } catch (e) { /* non-JSON */ }
+          throw new Error(msg);
+        });
+      }
+      return r.json();
+    });
   }
   writeLS(LS_KEY_EXCLUDED, map || {});
   return Promise.resolve({ saved: true });
@@ -220,7 +229,13 @@ export function uploadExcludedZips(zipArray) {
     headers: authHeaders(),
     body: JSON.stringify({ zips: zipArray }),
   }).then(function (r) {
-    if (!r.ok) return r.json().then(function (d) { throw new Error(d.error || "Upload failed"); });
+    if (!r.ok) {
+      return r.text().then(function (text) {
+        var msg = "Upload failed (" + r.status + ")";
+        try { var d = JSON.parse(text); if (d.error) msg = d.error; } catch (e) { /* non-JSON response */ }
+        throw new Error(msg);
+      });
+    }
     return r.json();
   });
 }
