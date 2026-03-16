@@ -30,23 +30,7 @@ jobs:
           fi
           echo "No secrets detected."
 
-      # ── 2. Node setup & dependencies ───────────────────────────
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install dependencies
-        run: |
-          if [ -f package-lock.json ]; then
-            npm ci --ignore-scripts
-          elif [ -f package.json ]; then
-            npm install --ignore-scripts
-          else
-            echo "No package.json — skipping npm install"
-          fi
-
-      # ── 3. HTML & security header validation ────────────────────
+      # ── 2. HTML & security header validation ────────────────────
       - name: Validate HTML structure and security headers
         run: |
           test -f index.html || { echo "::error::index.html not found"; exit 1; }
@@ -56,7 +40,7 @@ jobs:
           grep -q 'referrer' index.html || { echo "::warning::Missing referrer policy"; }
           echo "HTML structure and security headers OK."
 
-      # ── 4. JS module and asset checks ───────────────────────────
+      # ── 3. JS module and asset checks ───────────────────────────
       - name: Validate JS modules exist
         run: |
           echo "Checking required JS modules..."
@@ -88,7 +72,7 @@ jobs:
           fi
           echo "All JS imports resolve correctly."
 
-      # ── 5. Data files and deployment safety ─────────────────────
+      # ── 4. Data files and deployment safety ─────────────────────
       - name: Confirm required data files exist
         run: |
           echo "Verifying bundled data files are present..."
@@ -112,7 +96,7 @@ jobs:
           fi
           echo "No legacy backend references in frontend code."
 
-      # ── 6. .gitignore safety ────────────────────────────────────
+      # ── 5. .gitignore safety ────────────────────────────────────
       - name: Verify .gitignore excludes sensitive files
         run: |
           test -f .gitignore || { echo "::error::Missing .gitignore"; exit 1; }
@@ -121,7 +105,7 @@ jobs:
           done
           echo ".gitignore OK."
 
-      # ── 7. File size guard ──────────────────────────────────────
+      # ── 6. File size guard ──────────────────────────────────────
       - name: Check for oversized files
         run: |
           MAX_SIZE=6000000  # 6 MB
@@ -133,6 +117,6 @@ jobs:
           fi
           echo "File size check complete."
 
-      # ── 8. Run validate.sh (aggregated check) ──────────────────
+      # ── 7. Run validate.sh (aggregated check) ──────────────────
       - name: Run validation script
         run: bash validate.sh

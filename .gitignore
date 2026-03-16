@@ -31,9 +31,13 @@ server-data/
 .env.local
 .env.production
 .env.*
-!.env.example
 *.pem
 *.key
+
+# Vercel / server files (not used on GitHub Pages)
+vercel.json
+server.js
+storage.js
 
 # Node (if any tooling is added later)
 node_modules/

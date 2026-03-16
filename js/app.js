@@ -1,5 +1,7 @@
 /**
  * app.js — Bootstrap / init. Wires up all modules.
+ *
+ * Static GitHub Pages version — no backend, no authentication.
  */
 
 import {
@@ -8,8 +10,7 @@ import {
   getUsingPersistedData, buildZipDataMap,
 } from "./state.js";
 import {
-  probeBackend, isBackendMode, login, logout,
-  loadSavedState, loadAppData, loadTopoJSON, uploadExcludedZips,
+  loadSavedState, uploadExcludedZips,
 } from "./api.js";
 import {
   setupMap, loadBoundaries, clearSelection,
@@ -24,62 +25,10 @@ import { queryZefix, updateZefixSelectionCount, exportZefixResults, queueSelecte
 import { exportAnomalies, exportExcludedZips, exportSelectedZips } from "./exports.js";
 import { setupUploadEvents, showResetDataButton } from "./uploads.js";
 
-// ==================== Login Screen ====================
-function showLoginScreen() {
-  var overlay = document.getElementById("loginOverlay");
-  if (overlay) overlay.style.display = "flex";
-}
-
-function hideLoginScreen() {
-  var overlay = document.getElementById("loginOverlay");
-  if (overlay) overlay.style.display = "none";
-}
-
-function setupLoginForm() {
-  var form = document.getElementById("loginForm");
-  if (!form) return;
-  form.addEventListener("submit", function (e) {
-    e.preventDefault();
-    var user = document.getElementById("loginUser").value.trim();
-    var pass = document.getElementById("loginPass").value;
-    var errEl = document.getElementById("loginError");
-    var btn = form.querySelector("button[type=submit]");
-    errEl.textContent = "";
-    btn.disabled = true;
-
-    login(user, pass)
-      .then(function () {
-        hideLoginScreen();
-        initApp();
-      })
-      .catch(function (err) {
-        errEl.textContent = err.message || "Login failed";
-        btn.disabled = false;
-      });
-  });
-}
-
-function setupLogoutButton() {
-  var btn = document.getElementById("btnLogout");
-  if (!btn) return;
-  btn.style.display = "inline-block";
-  btn.addEventListener("click", function () {
-    logout().then(function () {
-      window.location.reload();
-    });
-  });
-}
-
 // ==================== Excluded ZIP Upload ====================
 function setupExcludedUpload() {
   var section = document.getElementById("excludedUploadSection");
   if (!section) return;
-
-  // Only show in backend mode
-  if (!isBackendMode()) {
-    section.style.display = "none";
-    return;
-  }
 
   var fileInput = document.getElementById("fileExcluded");
   var processBtn = document.getElementById("btnUploadExcluded");
@@ -112,7 +61,7 @@ function setupExcludedUpload() {
         return;
       }
 
-      statusEl.textContent = "Uploading " + zips.length + " ZIP codes...";
+      statusEl.textContent = "Importing " + zips.length + " ZIP codes...";
 
       uploadExcludedZips(zips)
         .then(function (result) {
@@ -130,7 +79,7 @@ function setupExcludedUpload() {
           });
         })
         .catch(function (err) {
-          statusEl.textContent = "Upload failed: " + err.message;
+          statusEl.textContent = "Import failed: " + err.message;
           statusEl.className = "upload-hint upload-error";
           processBtn.disabled = false;
         });
@@ -143,37 +92,34 @@ function setupExcludedUpload() {
 function initApp() {
   document.getElementById("lastUpdated").textContent = "Loading data...";
 
-  var dataPromise = isBackendMode() ? loadAppData() : Promise.resolve(null);
-  var topoPromise = isBackendMode() ? loadTopoJSON() : Promise.resolve(null);
   var savedPromise = loadSavedState();
 
-  Promise.all([dataPromise, topoPromise, savedPromise]).then(function (results) {
-    var apiData = results[0];
-    var topoData = results[1];
-    var savedState = results[2] || {};
+  savedPromise.then(function (savedState) {
+    savedState = savedState || {};
 
     setSavedStateLoaded(true);
     setSavedUploadedAt(savedState.uploaded_at || null);
 
-    if (apiData) {
-      setActiveData(apiData);
-    } else if (savedState.dataset) {
+    if (savedState.dataset) {
       setActiveData(savedState.dataset);
       setUsingPersistedData(true);
     }
 
-    // In backend mode, data must come from the API — no global fallback
+    // Fallback to bundled data from data/data.js
+    if (!getActiveData()) {
+      var bundled = typeof APP_DATA !== "undefined" ? APP_DATA : (window.APP_DATA || null);
+      if (bundled) {
+        setActiveData(bundled);
+      }
+    }
 
     if (!getActiveData()) {
       document.getElementById("lastUpdated").textContent = "No data available. Please upload.";
+      setupUploadEvents();
       return;
     }
 
     state.excludedZips = savedState.excluded_zips || {};
-
-    if (topoData) {
-      window.CH_PLZ_TOPOJSON = topoData;
-    }
 
     setRenderAnomalyTable(renderAnomalyTable);
     setOnExcludeCallback(function () {
@@ -193,11 +139,8 @@ function initApp() {
     updateLegend();
     renderAnomalyTable();
 
-    if (isBackendMode()) {
-      document.getElementById("lastUpdated").textContent = "Data: loaded from server";
-      setupLogoutButton();
-    } else if (getUsingPersistedData()) {
-      document.getElementById("lastUpdated").textContent = "Data: uploaded (persisted)";
+    if (getUsingPersistedData()) {
+      document.getElementById("lastUpdated").textContent = "Data: uploaded (browser storage)";
       showResetDataButton();
     } else {
       document.getElementById("lastUpdated").textContent = "Data: March 2026";
@@ -210,21 +153,7 @@ function initApp() {
 
 // ==================== Startup ====================
 function startup() {
-  setupLoginForm();
-
-  probeBackend().then(function (meResult) {
-    if (isBackendMode()) {
-      if (meResult.authenticated) {
-        hideLoginScreen();
-        initApp();
-      } else {
-        showLoginScreen();
-      }
-    } else {
-      hideLoginScreen();
-      initApp();
-    }
-  });
+  initApp();
 }
 
 // ==================== Event Listeners ====================

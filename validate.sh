@@ -30,9 +30,9 @@ for f in data/data.js data/ch-plz.js data/ch-plz.topojson; do
   if [ -f "$f" ]; then pass "$f exists"; else fail "$f missing (required for static fallback)"; fi
 done
 
-# 1c. Server files (expected for server deployment)
-for f in server.js package.json .env.example; do
-  if [ -f "$f" ]; then pass "$f exists"; else warn "$f missing (needed for server deployment)"; fi
+# 1c. Verify server files are NOT present (static-only mode)
+for f in server.js storage.js .env.example vercel.json; do
+  if [ -f "$f" ]; then fail "$f should not exist in static GitHub Pages mode"; else pass "$f correctly absent"; fi
 done
 
 # 2. Security checks
