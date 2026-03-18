@@ -150,30 +150,91 @@ function preprocessUploadedCSVs(sfdcRows, territoryRows) {
     merged.push(entry);
   });
 
-  // --- SFDC-only (not in master) ---
-  var sfdcOnly = [];
-  Object.keys(sfdcByZip).forEach(function (z) {
-    if (!masterByZip[z]) {
-      var sd = sfdcByZip[z];
-      sfdcOnly.push({
-        postcode: z,
-        sfdc_account_count: sd.accounts.length,
-        sfdc_accounts: sd.accounts,
-        sfdc_managers: Object.keys(sd.managers).map(mapManager).sort(),
-        sfdc_territories: [],
-        note: "present in SFDC but missing from master",
-      });
-    }
-  });
-  sfdcOnly.sort(function (a, b) { return a.postcode < b.postcode ? -1 : 1; });
-
-  // --- Build metadata ---
+  // --- Build metadata sets (populated during merge, extended by SFDC-only rule) ---
   var territoriesSet = {};
   var managersSet = {};
   merged.forEach(function (e) {
     if (e.territory_id) territoriesSet[e.territory_id] = true;
     if (e.account_manager) managersSet[e.account_manager] = true;
   });
+
+  // --- Build manager -> territory mapping (reverse of territory -> manager) ---
+  var managerToTerritory = {};
+  Object.keys(masterByZip).forEach(function (z) {
+    var m = masterByZip[z].account_manager;
+    var t = masterByZip[z].territory_id;
+    if (m && t) {
+      if (!managerToTerritory[m]) managerToTerritory[m] = {};
+      managerToTerritory[m][t] = (managerToTerritory[m][t] || 0) + 1;
+    }
+  });
+  // Resolve to dominant territory per manager
+  var managerTerritoryResolved = {};
+  Object.keys(managerToTerritory).forEach(function (m) {
+    var best = "";
+    var bestCount = 0;
+    Object.keys(managerToTerritory[m]).forEach(function (t) {
+      if (managerToTerritory[m][t] > bestCount) {
+        bestCount = managerToTerritory[m][t];
+        best = t;
+      }
+    });
+    if (best) managerTerritoryResolved[m] = best;
+  });
+
+  // --- SFDC-only (not in master) — assign via CMD Account Manager -> territory ---
+  var sfdcOnly = [];
+  Object.keys(sfdcByZip).forEach(function (z) {
+    if (!masterByZip[z]) {
+      var sd = sfdcByZip[z];
+      var mappedManagers = Object.keys(sd.managers).map(mapManager).sort();
+      // Pick the first non-empty manager that has a territory mapping
+      var assignedManager = "";
+      var assignedTerritory = "";
+      for (var mi = 0; mi < mappedManagers.length; mi++) {
+        if (mappedManagers[mi] && managerTerritoryResolved[mappedManagers[mi]]) {
+          assignedManager = mappedManagers[mi];
+          assignedTerritory = managerTerritoryResolved[mappedManagers[mi]];
+          break;
+        }
+      }
+      if (assignedTerritory) {
+        // Assign into merged as a covered ZIP (has SFDC accounts + now has territory)
+        merged.push({
+          postcode: z,
+          territory_id: assignedTerritory,
+          account_manager: assignedManager,
+          official_city: "",
+          canton: "",
+          in_sfdc: true,
+          sfdc_account_count: sd.accounts.length,
+          sfdc_accounts: sd.accounts,
+          sfdc_managers: mappedManagers,
+          sfdc_territories: [assignedTerritory],
+          status: "covered",
+          _assigned_from_sfdc: true,
+        });
+        // Also register in metadata sets
+        if (assignedTerritory) territoriesSet[assignedTerritory] = true;
+        if (assignedManager) managersSet[assignedManager] = true;
+      } else {
+        // Cannot resolve — keep as anomaly
+        sfdcOnly.push({
+          postcode: z,
+          sfdc_account_count: sd.accounts.length,
+          sfdc_accounts: sd.accounts,
+          sfdc_managers: mappedManagers,
+          sfdc_territories: [],
+          note: "present in SFDC but missing from master (no manager-territory mapping)",
+        });
+      }
+    }
+  });
+  sfdcOnly.sort(function (a, b) { return a.postcode < b.postcode ? -1 : 1; });
+  // Re-sort merged since SFDC-only assignments were appended
+  merged.sort(function (a, b) { return a.postcode < b.postcode ? -1 : 1; });
+
+  // --- Finalize metadata ---
   var territories = Object.keys(territoriesSet).sort();
   var managers = Object.keys(managersSet).sort();
 
