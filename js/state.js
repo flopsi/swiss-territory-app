@@ -46,7 +46,7 @@ export var coverageColors = {
   exception: "#dc2626",
   anomaly: "#dc2626",  // alias kept for backward compat
   excluded: "#8b5cf6",
-  identified: "#0891b2",  // Cyan/teal for processed ZIPs with new target accounts
+  identified: "#d946ef",  // Fuchsia for processed ZIPs with new target accounts
   unmatched: "#cbd5e1",
 };
 

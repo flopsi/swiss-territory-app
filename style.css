@@ -1361,8 +1361,8 @@ html, body {
 
 /* ========== IDENTIFIED (NEW TARGETS) COLOR ========== */
 :root {
-  --color-identified: #0891b2;
-  --color-identified-soft: #cffafe;
+  --color-identified: #d946ef;
+  --color-identified-soft: #fae8ff;
 }
 
 .tt-status.identified {
