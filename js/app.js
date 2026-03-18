@@ -24,6 +24,7 @@ import { queryZefix, updateZefixSelectionCount, exportZefixResults, queueSelecte
 import { exportAnomalies, exportExcludedZips, exportIdentifiedZips, exportSelectedZips } from "./exports.js";
 import { setupUploadEvents, showResetDataButton } from "./uploads.js";
 import { runSonarSearch, refreshCostDisplay, refreshAMSummary, refreshLeaderboard, updateMemoryCount } from "./perplexity.js";
+import { initAnalytics, trackEvent } from "./analytics.js";
 
 // ==================== Login Screen ====================
 function showLoginScreen() {
@@ -50,6 +51,7 @@ function setupLoginForm() {
 
     login(user, pass)
       .then(function () {
+        trackEvent("login_success");
         hideLoginScreen();
         initApp();
       })
@@ -252,6 +254,7 @@ function initApp() {
 
 // ==================== Startup ====================
 function startup() {
+  initAnalytics();
   setupLoginForm();
 
   probeBackend().then(function (meResult) {
@@ -367,14 +370,20 @@ function setupEventListeners() {
 
   document.getElementById("btnClearSelection").addEventListener("click", clearSelection);
   document.getElementById("btnExportSelected").addEventListener("click", exportSelectedZips);
-  document.getElementById("btnZefix").addEventListener("click", queryZefix);
+  document.getElementById("btnZefix").addEventListener("click", function () {
+    trackEvent("zefix_query");
+    queryZefix();
+  });
   document.getElementById("btnMarkIdentified").addEventListener("click", markSelectedIdentified);
   document.getElementById("btnMarkExcluded").addEventListener("click", markSelectedExcluded);
 
   // Export buttons
   document.getElementById("exportAnomalies").addEventListener("click", exportAnomalies);
   document.getElementById("exportExcluded").addEventListener("click", exportExcludedZips);
-  document.getElementById("exportIdentified").addEventListener("click", exportIdentifiedZips);
+  document.getElementById("exportIdentified").addEventListener("click", function () {
+    trackEvent("export_identified");
+    exportIdentifiedZips();
+  });
 
   // ZEFIX panel
   document.getElementById("closeZefix").addEventListener("click", function () {
@@ -469,7 +478,10 @@ function setupEventListeners() {
 
   var btnSonar = document.getElementById("btnSonarSearch");
   if (btnSonar) {
-    btnSonar.addEventListener("click", runSonarSearch);
+    btnSonar.addEventListener("click", function () {
+      trackEvent("sonar_search_clicked");
+      runSonarSearch();
+    });
   }
 
   var btnClearMem = document.getElementById("btnClearMemory");

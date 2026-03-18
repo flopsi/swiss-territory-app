@@ -36,6 +36,20 @@ export function runSonarSearch() {
     return;
   }
 
+  // Cost warning for large queries (>200 companies)
+  if (companies.length > 200) {
+    var ok = confirm(
+      "You are about to search " + companies.length + " companies via Sonar-Pro.\n\n" +
+      "Large queries like this can incur meaningful API costs (roughly $1+ per " +
+      "thousand lookups). Each company requires a separate Perplexity API call.\n\n" +
+      "Do you want to proceed?"
+    );
+    if (!ok) {
+      showSonarStatus("Search cancelled by user.", "zefix-loading");
+      return;
+    }
+  }
+
   showSonarStatus("Searching " + companies.length + " companies via Sonar-Pro...", "zefix-loading");
   disableSonarBtn(true);
 
