@@ -98,7 +98,7 @@ sfdcRows.forEach(row => {
     naics: (row["NAICS Industry"] || "").trim(),
   });
   const mgr = (row["CMD Account Manager"] || "").trim();
-  if (mgr) sfdcByZip[z].managers[mgr] = true;
+  if (mgr) sfdcByZip[z].managers[mgr] = (sfdcByZip[z].managers[mgr] || 0) + 1;
 });
 
 // --- Infer account managers when territory file lacks AM column ---
@@ -218,6 +218,8 @@ Object.keys(managerTerritoryResolved).sort().forEach(m => {
 });
 
 // --- SFDC-only: assign via manager -> territory rule ---
+// Rule: pick the manager with the most SFDC accounts in this ZIP (dominant evidence).
+// Tie-break: alphabetical by manager name (deterministic fallback).
 const sfdcOnly = [];
 let assignedCount = 0;
 const ambiguousCases = [];
@@ -225,15 +227,21 @@ Object.keys(sfdcByZip).forEach(z => {
   if (!masterByZip[z]) {
     const sd = sfdcByZip[z];
     const mappedManagers = Object.keys(sd.managers).map(mapManager).sort();
-    let assignedManager = "";
-    let assignedTerritory = "";
-    for (let i = 0; i < mappedManagers.length; i++) {
-      if (mappedManagers[i] && managerTerritoryResolved[mappedManagers[i]]) {
-        assignedManager = mappedManagers[i];
-        assignedTerritory = managerTerritoryResolved[mappedManagers[i]];
-        break;
-      }
-    }
+    // Build mapped-manager -> account count (sum raw counts for each SFDC name that maps to same master name)
+    const mappedCounts = {};
+    Object.keys(sd.managers).forEach(rawMgr => {
+      const mapped = mapManager(rawMgr);
+      mappedCounts[mapped] = (mappedCounts[mapped] || 0) + sd.managers[rawMgr];
+    });
+    // Sort candidates: highest account count first, then alphabetical tie-break
+    const candidates = mappedManagers
+      .filter(m => m && managerTerritoryResolved[m])
+      .sort((a, b) => {
+        const diff = (mappedCounts[b] || 0) - (mappedCounts[a] || 0);
+        return diff !== 0 ? diff : a.localeCompare(b);
+      });
+    let assignedManager = candidates.length > 0 ? candidates[0] : "";
+    let assignedTerritory = assignedManager ? managerTerritoryResolved[assignedManager] : "";
     // Track ambiguity when multiple managers map to different territories
     if (mappedManagers.length > 1) {
       const uniqueTerrs = {};

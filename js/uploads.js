@@ -52,7 +52,7 @@ function preprocessUploadedCSVs(sfdcRows, territoryRows) {
       naics: (row["NAICS Industry"] || "").trim(),
     });
     var mgr = (row["CMD Account Manager"] || "").trim();
-    if (mgr) sfdcByZip[z].managers[mgr] = true;
+    if (mgr) sfdcByZip[z].managers[mgr] = (sfdcByZip[z].managers[mgr] || 0) + 1;
   });
 
   // --- Infer account managers from SFDC when territory file lacks AM column ---
@@ -183,21 +183,28 @@ function preprocessUploadedCSVs(sfdcRows, territoryRows) {
   });
 
   // --- SFDC-only (not in master) — assign via CMD Account Manager -> territory ---
+  // Rule: pick the manager with the most SFDC accounts in this ZIP (dominant evidence).
+  // Tie-break: alphabetical by manager name (deterministic fallback).
   var sfdcOnly = [];
   Object.keys(sfdcByZip).forEach(function (z) {
     if (!masterByZip[z]) {
       var sd = sfdcByZip[z];
       var mappedManagers = Object.keys(sd.managers).map(mapManager).sort();
-      // Pick the first non-empty manager that has a territory mapping
-      var assignedManager = "";
-      var assignedTerritory = "";
-      for (var mi = 0; mi < mappedManagers.length; mi++) {
-        if (mappedManagers[mi] && managerTerritoryResolved[mappedManagers[mi]]) {
-          assignedManager = mappedManagers[mi];
-          assignedTerritory = managerTerritoryResolved[mappedManagers[mi]];
-          break;
-        }
-      }
+      // Build mapped-manager -> account count (sum raw counts for each SFDC name that maps to same master name)
+      var mappedCounts = {};
+      Object.keys(sd.managers).forEach(function (rawMgr) {
+        var mapped = mapManager(rawMgr);
+        mappedCounts[mapped] = (mappedCounts[mapped] || 0) + sd.managers[rawMgr];
+      });
+      // Sort candidates: highest account count first, then alphabetical tie-break
+      var candidates = mappedManagers
+        .filter(function (m) { return m && managerTerritoryResolved[m]; })
+        .sort(function (a, b) {
+          var diff = (mappedCounts[b] || 0) - (mappedCounts[a] || 0);
+          return diff !== 0 ? diff : a.localeCompare(b);
+        });
+      var assignedManager = candidates.length > 0 ? candidates[0] : "";
+      var assignedTerritory = assignedManager ? managerTerritoryResolved[assignedManager] : "";
       if (assignedTerritory) {
         // Assign into merged as a covered ZIP (has SFDC accounts + now has territory)
         merged.push({
