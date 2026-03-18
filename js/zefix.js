@@ -1,5 +1,11 @@
 /**
  * zefix.js — ZEFIX SPARQL query, result table, selection, CSV export, and Notion queue.
+ *
+ * Selection behavior:
+ *   - ZEFIX results default to DESELECTED (unchecked).
+ *   - Users check companies they want to keep.
+ *   - Selected companies are remembered in session memory (state.zefixSessionMemory)
+ *     so the user can trigger Perplexity search later in the same session.
  */
 
 import { state, getActiveData, ZEFIX_COLUMNS } from "./state.js";
@@ -118,11 +124,11 @@ export function renderZefixTable() {
   var tbody = document.getElementById("zefixBody");
   tbody.innerHTML = "";
 
-  // Initialize checked state array (all checked by default)
+  // Initialize checked state array (all DESELECTED by default per requirement)
   state.zefixChecked = [];
 
   state.zefixResults.forEach(function (r, idx) {
-    state.zefixChecked.push(true);
+    state.zefixChecked.push(false);
     var tr = document.createElement("tr");
     var uidDisplay = r.uid || "\u2014";
     var orgId = r.org.split("/").pop();
@@ -145,7 +151,7 @@ export function renderZefixTable() {
     }
 
     tr.innerHTML =
-      '<td><input type="checkbox" class="zefix-row-cb" data-idx="' + idx + '" checked></td>' +
+      '<td><input type="checkbox" class="zefix-row-cb" data-idx="' + idx + '"></td>' +
       "<td>" + escapeHTML(r.legalName) + "</td>" +
       purposeHTML +
       "<td>" + escapeHTML(r.postalCode) + "</td>" +
@@ -155,10 +161,43 @@ export function renderZefixTable() {
     tbody.appendChild(tr);
   });
 
-  // Update select-all checkbox state
+  // Update select-all checkbox state (unchecked since all rows are unchecked)
   var selAll = document.getElementById("zefixSelectAll");
-  if (selAll) selAll.checked = true;
+  if (selAll) selAll.checked = false;
   updateZefixSelectionCount();
+}
+
+// ==================== Session Selection Memory ====================
+// Saves selected ZEFIX companies to session memory so user can search via Perplexity later.
+export function saveSelectedToSessionMemory() {
+  var selected = getSelectedZefixResults();
+  if (selected.length === 0) return 0;
+
+  if (!state.zefixSessionMemory) state.zefixSessionMemory = [];
+
+  var existingKeys = {};
+  state.zefixSessionMemory.forEach(function (c) {
+    existingKeys[(c.legalName || c.name || "").toLowerCase() + "|" + (c.postalCode || c.zip || "")] = true;
+  });
+
+  var added = 0;
+  selected.forEach(function (c) {
+    var key = (c.legalName || "").toLowerCase() + "|" + (c.postalCode || "");
+    if (!existingKeys[key]) {
+      state.zefixSessionMemory.push(c);
+      existingKeys[key] = true;
+      added++;
+    }
+  });
+  return added;
+}
+
+export function getSessionMemoryCompanies() {
+  return state.zefixSessionMemory || [];
+}
+
+export function clearSessionMemory() {
+  state.zefixSessionMemory = [];
 }
 
 // ==================== ZEFIX Selection ====================

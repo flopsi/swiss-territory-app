@@ -20,9 +20,10 @@ import {
   populateSelects, populateAMButtons, syncAMButtons,
   onFilterChange, onSearchChange, updateStats, updateLegend, renderAnomalyTable,
 } from "./filters.js";
-import { queryZefix, updateZefixSelectionCount, exportZefixResults, queueSelectedZefixForNotion } from "./zefix.js";
+import { queryZefix, updateZefixSelectionCount, exportZefixResults, queueSelectedZefixForNotion, saveSelectedToSessionMemory, clearSessionMemory } from "./zefix.js";
 import { exportAnomalies, exportExcludedZips, exportIdentifiedZips, exportSelectedZips } from "./exports.js";
 import { setupUploadEvents, showResetDataButton } from "./uploads.js";
+import { runSonarSearch, refreshCostDisplay, refreshAMSummary, refreshLeaderboard, updateMemoryCount } from "./perplexity.js";
 
 // ==================== Login Screen ====================
 function showLoginScreen() {
@@ -76,6 +77,7 @@ function disableWriteControls() {
   var writeButtons = [
     "btnMarkExcluded", "btnMarkIdentified", "btnProcessUpload",
     "btnUploadExcluded", "btnResetData", "queueNotionBatch",
+    "btnSonarSearch", "btnRememberSelected", "btnClearMemory",
   ];
   writeButtons.forEach(function (id) {
     var el = document.getElementById(id);
@@ -229,6 +231,10 @@ function initApp() {
       var roleLabel = isViewOnly() ? " (view-only)" : "";
       document.getElementById("lastUpdated").textContent = "Data: loaded from server" + roleLabel;
       setupLogoutButton();
+      // Load Sonar-related data
+      refreshCostDisplay();
+      refreshAMSummary();
+      refreshLeaderboard();
       if (isViewOnly()) {
         disableWriteControls();
       }
@@ -447,6 +453,34 @@ function setupEventListeners() {
     });
   }
 
+  // Sonar-Pro / Perplexity buttons
+  var btnRemember = document.getElementById("btnRememberSelected");
+  if (btnRemember) {
+    btnRemember.addEventListener("click", function () {
+      var added = saveSelectedToSessionMemory();
+      updateMemoryCount();
+      if (added > 0) {
+        showNotionQueueStatusTemp("Remembered " + added + " new companies for Sonar search.", "zefix-success");
+      } else {
+        showNotionQueueStatusTemp("No new companies to add (already in memory or none selected).", "zefix-loading");
+      }
+    });
+  }
+
+  var btnSonar = document.getElementById("btnSonarSearch");
+  if (btnSonar) {
+    btnSonar.addEventListener("click", runSonarSearch);
+  }
+
+  var btnClearMem = document.getElementById("btnClearMemory");
+  if (btnClearMem) {
+    btnClearMem.addEventListener("click", function () {
+      clearSessionMemory();
+      updateMemoryCount();
+      showNotionQueueStatusTemp("Session memory cleared.", "zefix-loading");
+    });
+  }
+
   // Keyboard shortcut: Ctrl+Z for undo
   document.addEventListener("keydown", function (e) {
     if ((e.ctrlKey || e.metaKey) && e.key === "z") {
@@ -454,6 +488,15 @@ function setupEventListeners() {
       undoLastAction();
     }
   });
+}
+
+function showNotionQueueStatusTemp(msg, cls) {
+  var el = document.getElementById("sonarStatus");
+  if (!el) return;
+  el.textContent = msg;
+  el.className = "zefix-status " + (cls || "");
+  el.style.display = "block";
+  setTimeout(function () { el.style.display = "none"; }, 4000);
 }
 
 // ==================== ZEFIX Purpose Filter ====================

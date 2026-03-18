@@ -63,7 +63,7 @@ app.use(
         scriptSrc: ["'self'", "https://unpkg.com"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://unpkg.com"],
         imgSrc: ["'self'", "data:", "https://*.basemaps.cartocdn.com", "https://*.tile.openstreetmap.org"],
-        connectSrc: ["'self'", "https://int.lindas.admin.ch"],
+        connectSrc: ["'self'", "https://int.lindas.admin.ch", "https://api.perplexity.ai"],
         fontSrc: ["'self'"],
         frameSrc: ["'none'"],
         objectSrc: ["'none'"],
@@ -344,6 +344,300 @@ app.get("/api/dataset-meta", requireAuth, datasetMetaLimiter, function (_req, re
       console.error("Failed to read dataset meta:", err.message);
       res.json({ uploaded_at: null });
     });
+});
+
+// --------------- Perplexity Sonar-Pro (backend-only, key never exposed to frontend) ---------------
+var PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY || "";
+
+var SONAR_SYSTEM_MSG = "You are a sales qualification assistant for Thermo Fisher Scientific's Chromatography and Mass Spectrometry Division (CMD). Return exactly one sentence: state whether the queried company is or is not a likely CMD target customer, with the primary reason. No hedging, no bullet points, no follow-up questions.";
+
+var SONAR_USER_MSG_TEMPLATE = "Is {company_name} a target customer for Thermo Fisher Scientific's Chromatography and Mass Spectrometry (CMD) division? Research the company's industry, analytical laboratory activities, published methods, job postings mentioning liquid chromatography, trace elemental analysis, ICP-OES, ICP-MS, ion chromatography, PFAS, environmental safety, food testing, or mass spectrometry, and regulatory environment. CMD targets include pharma, biotech, life sciences, environmental testing, food safety, clinical research, and industrial quality control organizations that purchase or operate LC, GC, HPLC, UHPLC, or mass spectrometry instruments. Default geography: Switzerland.";
+
+var SONAR_JSON_SCHEMA = {
+  type: "json_schema",
+  json_schema: {
+    schema: {
+      type: "object",
+      properties: {
+        is_target: { type: "boolean" },
+        reason: { type: "string" },
+      },
+      required: ["is_target", "reason"],
+    },
+  },
+};
+
+// Rate-limit Sonar endpoint: 30 requests / 15 min per IP
+var sonarLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many Sonar requests. Try again later." },
+});
+
+// In-memory session cache for already-searched companies (survives server restart via storage)
+var _sonarCacheLoaded = false;
+var _sonarCacheMap = {};
+
+function loadSonarCacheOnce() {
+  if (_sonarCacheLoaded) return Promise.resolve();
+  return storage.getSonarCache().then(function (data) {
+    _sonarCacheMap = data || {};
+    _sonarCacheLoaded = true;
+  });
+}
+
+app.post("/api/sonar-search", requireWrite, sonarLimiter, function (req, res) {
+  if (!PERPLEXITY_API_KEY) {
+    return res.status(503).json({ error: "Perplexity API key not configured. Set PERPLEXITY_API_KEY env var." });
+  }
+
+  var companies = req.body.companies;
+  var user = req.session.user || "unknown";
+  if (!Array.isArray(companies) || companies.length === 0) {
+    return res.status(400).json({ error: "Expected { companies: [{ name, zip, locality, uid, org, purpose }] }" });
+  }
+
+  // Cap at 50 companies per request to prevent abuse
+  if (companies.length > 50) {
+    return res.status(400).json({ error: "Maximum 50 companies per request." });
+  }
+
+  loadSonarCacheOnce()
+    .then(function () {
+      var results = [];
+      var toSearch = [];
+
+      // Separate cached from uncached
+      companies.forEach(function (c) {
+        var cacheKey = (c.name || "").toLowerCase().trim() + "|" + (c.zip || "");
+        if (_sonarCacheMap[cacheKey]) {
+          results.push(Object.assign({}, c, { sonar: _sonarCacheMap[cacheKey], cached: true }));
+        } else {
+          toSearch.push({ company: c, cacheKey: cacheKey });
+        }
+      });
+
+      if (toSearch.length === 0) {
+        return res.json({ results: results, searched: 0, cached: results.length, cost: 0 });
+      }
+
+      // Use structured output for all batch sizes (reliable JSON parsing)
+      var searchPromises = toSearch.map(function (item) {
+        var userMsg = SONAR_USER_MSG_TEMPLATE.replace("{company_name}", item.company.name);
+        return fetch("https://api.perplexity.ai/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": "Bearer " + PERPLEXITY_API_KEY,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "sonar-pro",
+            messages: [
+              { role: "system", content: SONAR_SYSTEM_MSG },
+              { role: "user", content: userMsg },
+            ],
+            response_format: SONAR_JSON_SCHEMA,
+          }),
+        })
+          .then(function (r) {
+            if (!r.ok) return r.text().then(function (t) { throw new Error("Sonar API " + r.status + ": " + t); });
+            return r.json();
+          })
+          .then(function (data) {
+            var parsed = {};
+            try {
+              parsed = JSON.parse(data.choices[0].message.content);
+            } catch (e) {
+              parsed = { is_target: false, reason: "Failed to parse Sonar response" };
+            }
+            var cost = 0;
+            if (data.usage && data.usage.cost && data.usage.cost.total_cost) {
+              cost = data.usage.cost.total_cost;
+            }
+            return { item: item, parsed: parsed, cost: cost };
+          })
+          .catch(function (err) {
+            return { item: item, parsed: { is_target: false, reason: "API error: " + err.message }, cost: 0, error: true };
+          });
+      });
+
+      return Promise.all(searchPromises).then(function (searchResults) {
+        var totalCost = 0;
+        searchResults.forEach(function (sr) {
+          totalCost += sr.cost;
+          var sonarResult = {
+            is_target: sr.parsed.is_target,
+            reason: sr.parsed.reason,
+            cost: sr.cost,
+            searched_at: new Date().toISOString(),
+            searched_by: user,
+          };
+          _sonarCacheMap[sr.item.cacheKey] = sonarResult;
+          results.push(Object.assign({}, sr.item.company, { sonar: sonarResult, cached: false }));
+        });
+
+        // Persist cache and cost tracking
+        var costPromise = storage.getSonarCosts().then(function (costs) {
+          costs.total_cost = (costs.total_cost || 0) + totalCost;
+          costs.queries = (costs.queries || 0) + searchResults.length;
+          return storage.putSonarCosts(costs);
+        });
+
+        // Persist identified companies for companies classified as target
+        var companiesPromise = storage.getIdentifiedCompanies().then(function (existing) {
+          var now = new Date().toISOString();
+          results.forEach(function (r) {
+            if (r.sonar && r.sonar.is_target) {
+              existing.push({
+                name: r.name || r.legalName || "",
+                zip: r.zip || r.postalCode || "",
+                locality: r.locality || "",
+                uid: r.uid || "",
+                org: r.org || "",
+                purpose: r.purpose || "",
+                source: r.cached ? "sonar-cached" : "sonar",
+                is_target: true,
+                reason: r.sonar.reason,
+                identified_at: now,
+                identified_by: user,
+              });
+            }
+          });
+          return storage.putIdentifiedCompanies(existing);
+        });
+
+        // Update leaderboard
+        var leaderPromise = storage.getLeaderboard().then(function (lb) {
+          var newTargets = results.filter(function (r) { return r.sonar && r.sonar.is_target && !r.cached; });
+          if (newTargets.length > 0) {
+            if (!lb[user]) lb[user] = { count: 0, last_at: null };
+            lb[user].count += newTargets.length;
+            lb[user].last_at = new Date().toISOString();
+          }
+          return storage.putLeaderboard(lb);
+        });
+
+        return Promise.all([
+          storage.putSonarCache(_sonarCacheMap),
+          costPromise,
+          companiesPromise,
+          leaderPromise,
+        ]).then(function () {
+          res.json({
+            results: results,
+            searched: searchResults.filter(function (sr) { return !sr.error; }).length,
+            cached: results.filter(function (r) { return r.cached; }).length,
+            errors: searchResults.filter(function (sr) { return sr.error; }).length,
+            cost: totalCost,
+          });
+        });
+      });
+    })
+    .catch(function (err) {
+      console.error("Sonar search failed:", err);
+      res.status(500).json({ error: "Sonar search failed: " + err.message });
+    });
+});
+
+// Check if Perplexity is configured (no key exposed)
+app.get("/api/sonar-status", requireAuth, function (_req, res) {
+  res.json({ configured: !!PERPLEXITY_API_KEY });
+});
+
+// Get API cost summary
+app.get("/api/sonar-costs", requireAuth, function (_req, res) {
+  storage.getSonarCosts()
+    .then(function (data) { res.json(data); })
+    .catch(function () { res.json({ total_cost: 0, queries: 0 }); });
+});
+
+// --------------- Identified Companies CSV (backend-persisted) ---------------
+app.get("/api/identified-companies", requireAuth, function (_req, res) {
+  storage.getIdentifiedCompanies()
+    .then(function (data) { res.json(data); })
+    .catch(function () { res.json([]); });
+});
+
+// Add companies from ZEFIX (manual identification)
+app.post("/api/identified-companies", requireWrite, function (req, res) {
+  var newCompanies = req.body.companies;
+  var user = req.session.user || "unknown";
+  if (!Array.isArray(newCompanies)) {
+    return res.status(400).json({ error: "Expected { companies: [...] }" });
+  }
+  storage.getIdentifiedCompanies()
+    .then(function (existing) {
+      var now = new Date().toISOString();
+      newCompanies.forEach(function (c) {
+        existing.push({
+          name: c.legalName || c.name || "",
+          zip: c.postalCode || c.zip || "",
+          locality: c.locality || "",
+          uid: c.uid || "",
+          org: c.org || "",
+          purpose: c.purpose || "",
+          source: "zefix",
+          is_target: true,
+          reason: "Manually identified from ZEFIX",
+          identified_at: now,
+          identified_by: user,
+        });
+      });
+
+      // Update leaderboard for ZEFIX identifications
+      return storage.getLeaderboard().then(function (lb) {
+        if (!lb[user]) lb[user] = { count: 0, last_at: null };
+        lb[user].count += newCompanies.length;
+        lb[user].last_at = now;
+        return storage.putLeaderboard(lb);
+      }).then(function () {
+        return storage.putIdentifiedCompanies(existing);
+      }).then(function () {
+        res.json({ saved: true, total: existing.length });
+      });
+    })
+    .catch(function (err) {
+      console.error("Failed to save identified companies:", err.message);
+      res.status(500).json({ error: err.message });
+    });
+});
+
+// Download identified companies as CSV
+app.get("/api/identified-companies.csv", requireAuth, function (_req, res) {
+  storage.getIdentifiedCompanies()
+    .then(function (data) {
+      var header = "Company_Name,ZIP,Locality,UID,Source,Is_Target,Reason,Identified_At,Identified_By";
+      var rows = (data || []).map(function (c) {
+        return [
+          csvQuote(c.name), csvQuote(c.zip), csvQuote(c.locality), csvQuote(c.uid),
+          csvQuote(c.source), c.is_target ? "true" : "false",
+          csvQuote(c.reason), csvQuote(c.identified_at), csvQuote(c.identified_by),
+        ].join(",");
+      });
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", "attachment; filename=identified_companies.csv");
+      res.send(header + "\n" + rows.join("\n"));
+    })
+    .catch(function (err) {
+      res.status(500).json({ error: err.message });
+    });
+});
+
+function csvQuote(val) {
+  var s = String(val || "");
+  if (s.indexOf(",") >= 0 || s.indexOf('"') >= 0 || s.indexOf("\n") >= 0) {
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
+
+// --------------- Leaderboard ---------------
+app.get("/api/leaderboard", requireAuth, function (_req, res) {
+  storage.getLeaderboard()
+    .then(function (data) { res.json(data); })
+    .catch(function () { res.json({}); });
 });
 
 // --------------- Start / Export ---------------

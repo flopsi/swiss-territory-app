@@ -29,7 +29,7 @@
                style-src 'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com;
                img-src 'self' data: https://*.basemaps.cartocdn.com https://unpkg.com;
                font-src 'self' https://fonts.gstatic.com;
-               connect-src 'self' https://int.lindas.admin.ch https://*.basemaps.cartocdn.com;">
+               connect-src 'self' https://int.lindas.admin.ch https://*.basemaps.cartocdn.com https://api.perplexity.ai;">
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 
@@ -92,6 +92,17 @@
           <div class="stat-card">
             <span class="stat-value stat-val-dark" id="statAccounts">--</span>
             <span class="stat-label">SFDC ACCOUNTS</span>
+          </div>
+        </div>
+
+        <!-- AM Summary (identified companies per AM) -->
+        <div id="amSummarySection" class="sidebar-section" style="display:none;">
+          <div class="section-heading">IDENTIFIED PER AM</div>
+          <div class="section-body">
+            <table class="am-summary-table">
+              <thead><tr><th>Account Manager</th><th>Companies</th></tr></thead>
+              <tbody id="amSummaryBody"></tbody>
+            </table>
           </div>
         </div>
 
@@ -177,6 +188,24 @@
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2M8 2v8M5 7l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 Identified CSV
               </button>
+            </div>
+            <div class="export-buttons" style="margin-top:6px;">
+              <a class="export-btn" id="downloadIdentifiedCompanies" href="/api/identified-companies.csv" title="Download all identified companies (Sonar + ZEFIX) as CSV">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2M8 2v8M5 7l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Companies CSV
+              </a>
+            </div>
+            <!-- Sonar cost display -->
+            <div class="mini-stats" style="margin-top:8px;">
+              <span class="mini-stat">Sonar cost: <span class="mini-val" id="sonarCostDisplay">$0.00</span></span>
+            </div>
+            <!-- Leaderboard -->
+            <div id="leaderboardSection" style="display:none;margin-top:8px;">
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-text-muted);margin-bottom:4px;">LEADERBOARD</div>
+              <table class="am-summary-table">
+                <thead><tr><th>#</th><th>User</th><th>Identified</th></tr></thead>
+                <tbody id="leaderboardBody"></tbody>
+              </table>
             </div>
           </div>
         </details>
@@ -291,6 +320,10 @@
           <h3 class="section-heading" style="margin-bottom:0;">ZEFIX Results</h3>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
             <span id="zefixSelCount" style="font-size:11px;color:#64748b;"></span>
+            <button class="export-btn export-btn-sm sonar-remember-btn" id="btnRememberSelected" title="Save checked companies to session memory for Sonar search">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 2l1.5 4H14l-3.5 2.5L12 13 8 10l-4 3 1.5-4.5L2 6h4.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Remember Selected
+            </button>
             <button class="export-btn export-btn-sm" id="queueNotionBatch" title="Store checked ZEFIX companies for manual Notion push">
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3M2 13h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
               Queue for Notion
@@ -323,7 +356,7 @@
           <table class="zefix-table" id="zefixTable">
             <thead>
               <tr>
-                <th style="width:32px;"><input type="checkbox" id="zefixSelectAll" checked title="Select / deselect all"></th>
+                <th style="width:32px;"><input type="checkbox" id="zefixSelectAll" title="Select / deselect all"></th>
                 <th>Legal Name</th>
                 <th>Purpose</th>
                 <th>ZIP</th>
@@ -334,6 +367,34 @@
             </thead>
             <tbody id="zefixBody"></tbody>
           </table>
+        </div>
+
+        <!-- Sonar-Pro Search Section -->
+        <div class="sonar-section" id="sonarSection">
+          <div class="sonar-bar">
+            <span id="sonarMemoryCount" class="filter-hint" style="display:none;"></span>
+            <button class="export-btn export-btn-sm sonar-search-btn" id="btnSonarSearch" title="Run Sonar-Pro qualification on remembered companies">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 4l6 4 6-4M2 4v8a1 1 0 001 1h10a1 1 0 001-1V4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Search with Sonar-Pro
+            </button>
+            <button class="export-btn export-btn-sm" id="btnClearMemory" title="Clear session memory">Clear Memory</button>
+          </div>
+          <div class="zefix-status" id="sonarStatus" style="display:none;"></div>
+          <div id="sonarZipUpdates" class="zefix-status zefix-success" style="display:none;"></div>
+          <div id="sonarResultsWrap" style="display:none;">
+            <table class="zefix-table sonar-results-table">
+              <thead>
+                <tr>
+                  <th>Company</th>
+                  <th>ZIP</th>
+                  <th>Locality</th>
+                  <th>Target?</th>
+                  <th>Reason</th>
+                </tr>
+              </thead>
+              <tbody id="sonarBody"></tbody>
+            </table>
+          </div>
         </div>
       </aside>
     </div>

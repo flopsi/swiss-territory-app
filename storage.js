@@ -19,6 +19,10 @@ const BLOB_PATHS = {
   identified: BLOB_PREFIX + "identified.json",
   dataset: BLOB_PREFIX + "uploaded-dataset.json",
   datasetMeta: BLOB_PREFIX + "uploaded-at.json",
+  identifiedCompanies: BLOB_PREFIX + "identified-companies.json",
+  sonarCache: BLOB_PREFIX + "sonar-cache.json",
+  sonarCosts: BLOB_PREFIX + "sonar-costs.json",
+  leaderboard: BLOB_PREFIX + "leaderboard.json",
 };
 
 // Local filesystem paths
@@ -28,6 +32,10 @@ const LOCAL_PATHS = {
   identified: path.join(SERVER_DATA_DIR, "identified.json"),
   dataset: path.join(SERVER_DATA_DIR, "uploaded-dataset.json"),
   datasetMeta: path.join(SERVER_DATA_DIR, "uploaded-at.json"),
+  identifiedCompanies: path.join(SERVER_DATA_DIR, "identified-companies.json"),
+  sonarCache: path.join(SERVER_DATA_DIR, "sonar-cache.json"),
+  sonarCosts: path.join(SERVER_DATA_DIR, "sonar-costs.json"),
+  leaderboard: path.join(SERVER_DATA_DIR, "leaderboard.json"),
 };
 
 // --------------- Lazy Blob SDK loader ---------------
@@ -227,6 +235,78 @@ async function putDatasetMeta(data) {
   localPut(LOCAL_PATHS.datasetMeta, data);
 }
 
+// --------------- Identified Companies (persisted CSV-backing store) ---------------
+
+async function getIdentifiedCompanies() {
+  if (IS_VERCEL) {
+    if (!isBlobConfigured()) return [];
+    return await blobGet(BLOB_PATHS.identifiedCompanies, []);
+  }
+  return localGet(LOCAL_PATHS.identifiedCompanies, []);
+}
+
+async function putIdentifiedCompanies(data) {
+  if (IS_VERCEL) {
+    if (!isBlobConfigured()) throw new Error("BLOB_READ_WRITE_TOKEN is not set.");
+    return await blobPut(BLOB_PATHS.identifiedCompanies, data);
+  }
+  localPut(LOCAL_PATHS.identifiedCompanies, data);
+}
+
+// --------------- Sonar Lookup Cache (prevents repeated lookups) ---------------
+
+async function getSonarCache() {
+  if (IS_VERCEL) {
+    if (!isBlobConfigured()) return {};
+    return await blobGet(BLOB_PATHS.sonarCache, {});
+  }
+  return localGet(LOCAL_PATHS.sonarCache, {});
+}
+
+async function putSonarCache(data) {
+  if (IS_VERCEL) {
+    if (!isBlobConfigured()) throw new Error("BLOB_READ_WRITE_TOKEN is not set.");
+    return await blobPut(BLOB_PATHS.sonarCache, data);
+  }
+  localPut(LOCAL_PATHS.sonarCache, data);
+}
+
+// --------------- Sonar Cost Tracking ---------------
+
+async function getSonarCosts() {
+  if (IS_VERCEL) {
+    if (!isBlobConfigured()) return { total_cost: 0, queries: 0 };
+    return await blobGet(BLOB_PATHS.sonarCosts, { total_cost: 0, queries: 0 });
+  }
+  return localGet(LOCAL_PATHS.sonarCosts, { total_cost: 0, queries: 0 });
+}
+
+async function putSonarCosts(data) {
+  if (IS_VERCEL) {
+    if (!isBlobConfigured()) throw new Error("BLOB_READ_WRITE_TOKEN is not set.");
+    return await blobPut(BLOB_PATHS.sonarCosts, data);
+  }
+  localPut(LOCAL_PATHS.sonarCosts, data);
+}
+
+// --------------- Leaderboard ---------------
+
+async function getLeaderboard() {
+  if (IS_VERCEL) {
+    if (!isBlobConfigured()) return {};
+    return await blobGet(BLOB_PATHS.leaderboard, {});
+  }
+  return localGet(LOCAL_PATHS.leaderboard, {});
+}
+
+async function putLeaderboard(data) {
+  if (IS_VERCEL) {
+    if (!isBlobConfigured()) throw new Error("BLOB_READ_WRITE_TOKEN is not set.");
+    return await blobPut(BLOB_PATHS.leaderboard, data);
+  }
+  localPut(LOCAL_PATHS.leaderboard, data);
+}
+
 /**
  * Delete all persisted data (excluded + dataset + meta).
  */
@@ -238,6 +318,10 @@ async function clearAll() {
       blobDel(BLOB_PATHS.identified),
       blobDel(BLOB_PATHS.dataset),
       blobDel(BLOB_PATHS.datasetMeta),
+      blobDel(BLOB_PATHS.identifiedCompanies),
+      blobDel(BLOB_PATHS.sonarCache),
+      blobDel(BLOB_PATHS.sonarCosts),
+      blobDel(BLOB_PATHS.leaderboard),
     ]);
     return;
   }
@@ -245,6 +329,10 @@ async function clearAll() {
   localDel(LOCAL_PATHS.identified);
   localDel(LOCAL_PATHS.dataset);
   localDel(LOCAL_PATHS.datasetMeta);
+  localDel(LOCAL_PATHS.identifiedCompanies);
+  localDel(LOCAL_PATHS.sonarCache);
+  localDel(LOCAL_PATHS.sonarCosts);
+  localDel(LOCAL_PATHS.leaderboard);
 }
 
 module.exports = {
@@ -257,5 +345,13 @@ module.exports = {
   putDataset: putDataset,
   getDatasetMeta: getDatasetMeta,
   putDatasetMeta: putDatasetMeta,
+  getIdentifiedCompanies: getIdentifiedCompanies,
+  putIdentifiedCompanies: putIdentifiedCompanies,
+  getSonarCache: getSonarCache,
+  putSonarCache: putSonarCache,
+  getSonarCosts: getSonarCosts,
+  putSonarCosts: putSonarCosts,
+  getLeaderboard: getLeaderboard,
+  putLeaderboard: putLeaderboard,
   clearAll: clearAll,
 };
