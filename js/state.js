@@ -22,8 +22,10 @@ export var state = {
   filterManagers: [],       // multi-select array, [] = all
   filterTerritory: "",      // single select (v1 style), "" = all
   filterStatus: "",         // single select (v1 style), "" = all
+  filterSearch: "",         // ZIP/city search query
   selectedZips: {},
   excludedZips: {},
+  identifiedZips: {},       // ZIPs where new target accounts were found via ZEFIX
   geoLayer: null,
   territoryBorderLayer: null,
   map: null,
@@ -43,6 +45,7 @@ export var coverageColors = {
   exception: "#dc2626",
   anomaly: "#dc2626",  // alias kept for backward compat
   excluded: "#8b5cf6",
+  identified: "#0891b2",  // Cyan/teal for processed ZIPs with new target accounts
   unmatched: "#cbd5e1",
 };
 
@@ -73,6 +76,7 @@ export function getExceptionInfo(entry) {
 export function getEffectiveStatus(entry) {
   if (!entry) return "unmatched";
   if (state.excludedZips[entry.postcode]) return "excluded";
+  if (state.identifiedZips[entry.postcode]) return "identified";
   if (entry._anomaly) return "exception";
   return entry.status;
 }
@@ -85,16 +89,19 @@ export function getZipColor(entry) {
 
   if (state.colorMode === "coverage") {
     if (eff === "excluded") return coverageColors.excluded;
+    if (eff === "identified") return coverageColors.identified;
     if (eff === "exception") return coverageColors.exception;
     return eff === "covered" ? coverageColors.covered : coverageColors.potential;
   }
   if (state.colorMode === "manager") {
     if (eff === "excluded") return coverageColors.excluded;
+    if (eff === "identified") return coverageColors.identified;
     if (eff === "exception") return coverageColors.exception;
     return data.manager_colors[entry.account_manager] || "#cbd5e1";
   }
   if (state.colorMode === "territory") {
     if (eff === "excluded") return coverageColors.excluded;
+    if (eff === "identified") return coverageColors.identified;
     if (eff === "exception") return coverageColors.exception;
     return data.territory_colors[entry.territory_id] || "#cbd5e1";
   }

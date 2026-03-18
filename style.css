@@ -1295,3 +1295,106 @@ html, body {
   padding: 6px 14px;
   border-bottom: 1px solid var(--color-border);
 }
+
+/* ========== ZEFIX PURPOSE PRESET BUTTONS ========== */
+.zefix-filter-bar-presets {
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.zefix-preset-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 100px;
+  background: var(--color-surface);
+  font-family: var(--font);
+  font-size: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.zefix-preset-btn:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.zefix-preset-btn.active {
+  background: var(--color-accent);
+  color: white;
+  border-color: var(--color-accent);
+}
+
+.zefix-preset-clear {
+  color: var(--color-text-muted);
+  border-style: dashed;
+}
+
+/* ========== ZIP SEARCH FEEDBACK ========== */
+.search-feedback {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  font-size: 11px;
+}
+
+.search-match-count {
+  color: var(--color-covered);
+  font-weight: 600;
+}
+
+.search-no-match {
+  color: var(--color-text-muted);
+}
+
+.search-anomaly-hint {
+  color: var(--color-anomaly);
+  font-size: 10px;
+}
+
+/* ========== IDENTIFIED (NEW TARGETS) COLOR ========== */
+:root {
+  --color-identified: #0891b2;
+  --color-identified-soft: #cffafe;
+}
+
+.tt-status.identified {
+  background: var(--color-identified-soft);
+  color: var(--color-identified);
+}
+
+.tray-chip-identified {
+  border-color: var(--color-identified);
+}
+
+.stat-val-identified {
+  color: var(--color-identified);
+}
+
+.tray-btn-identified {
+  border-color: var(--color-identified);
+  color: var(--color-identified);
+}
+
+.tray-btn-identified:hover {
+  background: var(--color-identified-soft);
+  border-color: var(--color-identified);
+  color: var(--color-identified);
+}
+
+/* Search-highlighted anomaly row */
+.anomaly-search-row td {
+  background: var(--color-potential-soft);
+}
+
+.anomaly-search-note {
+  color: var(--color-text-muted);
+  font-style: italic;
+}

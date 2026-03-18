@@ -14,11 +14,11 @@ import {
 import {
   setupMap, loadBoundaries, clearSelection,
   updateSelectionTray, refreshStyles, markSelectedExcluded,
-  undoLastAction, setOnExcludeCallback, setRenderAnomalyTable,
+  markSelectedIdentified, undoLastAction, setOnExcludeCallback, setRenderAnomalyTable,
 } from "./map.js";
 import {
   populateSelects, populateAMButtons, syncAMButtons,
-  onFilterChange, updateStats, updateLegend, renderAnomalyTable,
+  onFilterChange, onSearchChange, updateStats, updateLegend, renderAnomalyTable,
 } from "./filters.js";
 import { queryZefix, updateZefixSelectionCount, exportZefixResults, queueSelectedZefixForNotion } from "./zefix.js";
 import { exportAnomalies, exportExcludedZips, exportSelectedZips } from "./exports.js";
@@ -160,9 +160,10 @@ function initApp() {
     } else if (savedState.dataset) {
       setActiveData(savedState.dataset);
       setUsingPersistedData(true);
+    } else if (typeof APP_DATA !== "undefined" && APP_DATA) {
+      // Static mode: fall back to bundled data loaded via <script> tag
+      setActiveData(APP_DATA);
     }
-
-    // In backend mode, data must come from the API — no global fallback
 
     if (!getActiveData()) {
       document.getElementById("lastUpdated").textContent = "No data available. Please upload.";
@@ -170,6 +171,12 @@ function initApp() {
     }
 
     state.excludedZips = savedState.excluded_zips || {};
+
+    // Load identified ZIPs from localStorage
+    try {
+      var savedIdentified = localStorage.getItem("swiss_territory_identified");
+      if (savedIdentified) state.identifiedZips = JSON.parse(savedIdentified);
+    } catch (e) { /* ignore */ }
 
     if (topoData) {
       window.CH_PLZ_TOPOJSON = topoData;
@@ -326,6 +333,7 @@ function setupEventListeners() {
   document.getElementById("btnClearSelection").addEventListener("click", clearSelection);
   document.getElementById("btnExportSelected").addEventListener("click", exportSelectedZips);
   document.getElementById("btnZefix").addEventListener("click", queryZefix);
+  document.getElementById("btnMarkIdentified").addEventListener("click", markSelectedIdentified);
   document.getElementById("btnMarkExcluded").addEventListener("click", markSelectedExcluded);
 
   // Export buttons
@@ -366,6 +374,45 @@ function setupEventListeners() {
   var purposeInput = document.getElementById("zefixPurposeFilter");
   if (purposeInput) {
     purposeInput.addEventListener("input", function () {
+      filterZefixByPurpose();
+    });
+  }
+
+  // ZIP / City search
+  var zipSearchInput = document.getElementById("zipSearch");
+  if (zipSearchInput) {
+    var searchDebounce = null;
+    zipSearchInput.addEventListener("input", function () {
+      clearTimeout(searchDebounce);
+      searchDebounce = setTimeout(function () {
+        state.filterSearch = zipSearchInput.value.trim();
+        onSearchChange();
+        refreshStyles();
+      }, 200);
+    });
+  }
+
+  // ZEFIX purpose preset buttons
+  var presetBar = document.querySelector(".zefix-filter-bar-presets");
+  if (presetBar) {
+    presetBar.addEventListener("click", function (e) {
+      var btn = e.target.closest(".zefix-preset-btn");
+      if (!btn) return;
+      var keywords = btn.dataset.keywords || "";
+      var purposeInput = document.getElementById("zefixPurposeFilter");
+      if (!purposeInput) return;
+
+      // Toggle: if same preset is active, clear it
+      var wasActive = btn.classList.contains("active");
+      presetBar.querySelectorAll(".zefix-preset-btn").forEach(function (b) { b.classList.remove("active"); });
+
+      if (wasActive || !keywords) {
+        purposeInput.value = "";
+        btn.classList.remove("active");
+      } else {
+        purposeInput.value = keywords;
+        btn.classList.add("active");
+      }
       filterZefixByPurpose();
     });
   }

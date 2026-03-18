@@ -19,23 +19,27 @@ import { showNotionQueueStatus } from "./zefix.js";
 // ==================== Client-Side Preprocessing ====================
 function preprocessUploadedCSVs(sfdcRows, territoryRows) {
   // --- Build master from territory CSV ---
+  // Support both old format (Territory_ID, AM 2026) and new format (Territory ID, no AM column)
   var masterByZip = {};
   territoryRows.forEach(function (row) {
     var z = normalizeZip(row["Postcode"]);
     if (!z) return;
+    var tid = (row["Territory_ID"] || row["Territory ID"] || "").trim();
+    var am = (row["AM 2026"] || "").trim();
     masterByZip[z] = {
       postcode: z,
-      territory_id: (row["Territory_ID"] || "").trim(),
-      account_manager: (row["AM 2026"] || "").trim(),
+      territory_id: tid,
+      account_manager: am,
       official_city: "",
       canton: "",
     };
   });
 
   // --- Build SFDC aggregation ---
+  // Support both old format (zip) and new format (Billing Zip/Postal Code)
   var sfdcByZip = {};
   sfdcRows.forEach(function (row) {
-    var z = normalizeZip(row["zip"]);
+    var z = normalizeZip(row["zip"] || row["Billing Zip/Postal Code"]);
     if (!z) return;
     if (!sfdcByZip[z]) {
       sfdcByZip[z] = { accounts: [], managers: {}, territories: {} };
@@ -43,10 +47,49 @@ function preprocessUploadedCSVs(sfdcRows, territoryRows) {
     sfdcByZip[z].accounts.push({
       id: (row["SF Account ID"] || "").trim(),
       name: (row["Accounts Name"] || "").trim(),
+      industry: (row["Industry Segment*"] || "").trim(),
+      sector: (row["Economic Sector"] || "").trim(),
+      naics: (row["NAICS Industry"] || "").trim(),
     });
     var mgr = (row["CMD Account Manager"] || "").trim();
     if (mgr) sfdcByZip[z].managers[mgr] = true;
   });
+
+  // --- Infer account managers from SFDC when territory file lacks AM column ---
+  var hasAMColumn = Object.keys(masterByZip).some(function (z) {
+    return masterByZip[z].account_manager !== "";
+  });
+
+  if (!hasAMColumn) {
+    // Group ZIPs by territory, find most common SFDC manager per territory
+    var zipsByTerritory = {};
+    Object.keys(masterByZip).forEach(function (z) {
+      var tid = masterByZip[z].territory_id;
+      if (!zipsByTerritory[tid]) zipsByTerritory[tid] = [];
+      zipsByTerritory[tid].push(z);
+    });
+
+    Object.keys(zipsByTerritory).forEach(function (tid) {
+      var managerCounts = {};
+      zipsByTerritory[tid].forEach(function (z) {
+        if (sfdcByZip[z]) {
+          Object.keys(sfdcByZip[z].managers).forEach(function (m) {
+            managerCounts[m] = (managerCounts[m] || 0) + 1;
+          });
+        }
+      });
+      var bestMgr = "";
+      var bestCount = 0;
+      Object.keys(managerCounts).forEach(function (m) {
+        if (managerCounts[m] > bestCount) { bestCount = managerCounts[m]; bestMgr = m; }
+      });
+      if (bestMgr) {
+        zipsByTerritory[tid].forEach(function (z) {
+          masterByZip[z].account_manager = bestMgr;
+        });
+      }
+    });
+  }
 
   // --- Manager name mapping (SFDC -> territory) ---
   var masterManagers = {};
@@ -178,11 +221,13 @@ export function refreshAppWithData(newData, options) {
   state.zipDataMap = {};
   state.anomalyZips = {};
   state.selectedZips = {};
+  state.identifiedZips = {};
   state.zefixResults = [];
   state.zefixChecked = [];
   state.filterManagers = [];
   state.filterTerritory = "";
   state.filterStatus = "";
+  state.filterSearch = "";
   state.colorMode = "coverage";
 
   // Rebuild data map
@@ -299,14 +344,16 @@ export function setupUploadEvents() {
         if (sfdcRows.length === 0) throw new Error("SFDC CSV is empty or unparseable.");
         if (territoryRows.length === 0) throw new Error("Territory CSV is empty or unparseable.");
 
-        // Validate expected columns
+        // Validate expected columns (support both old and new formats)
         var sfdcCols = Object.keys(sfdcRows[0]);
-        if (sfdcCols.indexOf("Accounts Name") < 0 || sfdcCols.indexOf("zip") < 0) {
-          throw new Error("SFDC CSV missing expected columns (Accounts Name, SF Account ID, CMD Account Manager, zip). Found: " + sfdcCols.join(", "));
+        var hasSfdcZip = sfdcCols.indexOf("zip") >= 0 || sfdcCols.indexOf("Billing Zip/Postal Code") >= 0;
+        if (sfdcCols.indexOf("Accounts Name") < 0 || !hasSfdcZip) {
+          throw new Error("SFDC CSV missing expected columns (Accounts Name + zip or Billing Zip/Postal Code). Found: " + sfdcCols.join(", "));
         }
         var terrCols = Object.keys(territoryRows[0]);
-        if (terrCols.indexOf("Postcode") < 0 || terrCols.indexOf("Territory_ID") < 0) {
-          throw new Error("Territory CSV missing expected columns (Postcode, Territory_ID, AM 2026). Found: " + terrCols.join(", "));
+        var hasTerrID = terrCols.indexOf("Territory_ID") >= 0 || terrCols.indexOf("Territory ID") >= 0;
+        if (terrCols.indexOf("Postcode") < 0 || !hasTerrID) {
+          throw new Error("Territory CSV missing expected columns (Postcode + Territory_ID or Territory ID). Found: " + terrCols.join(", "));
         }
 
         statusEl.textContent = "Processing " + sfdcRows.length + " SFDC rows + " + territoryRows.length + " territory rows...";

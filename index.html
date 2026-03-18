@@ -95,6 +95,15 @@
           </div>
         </div>
 
+        <!-- ZIP / City Search -->
+        <div class="sidebar-section">
+          <div class="section-heading">SEARCH</div>
+          <div class="section-body">
+            <input type="text" id="zipSearch" class="filter-select" placeholder="Search ZIP code or city..." autocomplete="off">
+            <div id="searchFeedback" class="search-feedback" style="display:none;"></div>
+          </div>
+        </div>
+
         <!-- Filters section (flat, no collapsible) -->
         <div class="sidebar-section">
           <div class="section-heading">FILTERS</div>
@@ -153,6 +162,7 @@
             <div class="mini-stats">
               <span class="mini-stat"><span class="mini-val" id="statExceptions">0</span> Exceptions</span>
               <span class="mini-stat"><span class="mini-val" id="statExcluded">0</span> Excluded</span>
+              <span class="mini-stat"><span class="mini-val stat-val-identified" id="statIdentified">0</span> Identified</span>
             </div>
             <div class="export-buttons">
               <button class="export-btn" id="exportAnomalies" title="Export SFDC-only exception ZIPs">
@@ -249,6 +259,10 @@
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.5"/><path d="M11 11l3.5 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
                 Find in ZEFIX
               </button>
+              <button class="tray-btn tray-btn-identified" id="btnMarkIdentified" title="Mark selected ZIPs as having new target accounts">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2l1.5 4H14l-3.5 2.5L12 13 8 10l-4 3 1.5-4.5L2 6h4.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Mark Identified
+              </button>
               <button class="tray-btn tray-btn-warn" id="btnMarkExcluded" title="Mark selected ZIPs as 'no valid accounts'">
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M5 5l6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
                 Mark Excluded
@@ -288,6 +302,15 @@
         </div>
         <div class="zefix-status" id="zefixStatus"></div>
         <div class="zefix-status" id="notionQueueStatus" style="display:none;"></div>
+        <div class="zefix-filter-bar zefix-filter-bar-presets">
+          <span class="filter-hint" style="white-space:nowrap;">Target scan:</span>
+          <button class="zefix-preset-btn" data-keywords="pharma,biotech,chemical,life science" title="Pharma/Biotech/Chemical">Pharma</button>
+          <button class="zefix-preset-btn" data-keywords="medtech,medical,diagnostic,device" title="MedTech/Devices">MedTech</button>
+          <button class="zefix-preset-btn" data-keywords="food,beverage,nutrition,agri" title="Food/Beverage/Agriculture">Food</button>
+          <button class="zefix-preset-btn" data-keywords="research,laboratory,analysis,testing,science" title="Research/Lab/Testing">Research</button>
+          <button class="zefix-preset-btn" data-keywords="environment,water,energy,clean" title="Environmental/Energy">Enviro</button>
+          <button class="zefix-preset-btn zefix-preset-clear" data-keywords="" title="Clear filter">Clear</button>
+        </div>
         <div class="zefix-filter-bar">
           <input type="text" id="zefixPurposeFilter" class="filter-select" placeholder="Filter by purpose or name keywords (comma-separated)" style="flex:1;">
           <span id="zefixFilterCount" class="filter-hint" style="white-space:nowrap;"></span>
@@ -347,6 +370,10 @@
       <button type="submit" class="export-btn upload-process-btn" style="margin-top:8px;">Login</button>
     </form>
   </div>
+
+  <!-- Bundled data (static mode, loaded as globals before the app module) -->
+  <script src="./data/ch-plz.js"></script>
+  <script src="./data/data.js"></script>
 
   <script type="module" src="./js/app.js"></script>
 </body>

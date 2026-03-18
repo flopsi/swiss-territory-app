@@ -27,7 +27,7 @@ export function populateSelects() {
   data.territories.forEach(function (t) {
     var opt = document.createElement("option");
     opt.value = t;
-    opt.textContent = t.replace("CMD_EMEA_CH_AM_", "AM ");
+    opt.textContent = t.replace("CMD_EMEA_CH_AM_", "AM ").replace("CMD_EMEA_CHAM_", "AM ");
     territorySelect.appendChild(opt);
   });
 
@@ -36,6 +36,7 @@ export function populateSelects() {
   var statuses = [
     { value: "covered", label: "Covered" },
     { value: "potential", label: "Potential" },
+    { value: "identified", label: "Identified (new targets)" },
     { value: "anomaly", label: "Exception (SFDC only)" },
     { value: "excluded", label: "Excluded" },
   ];
@@ -196,7 +197,7 @@ export function updateStats() {
     return entry && !isFiltered(entry);
   });
 
-  var covered = 0, potential = 0, exceptions = 0, excluded = 0, accounts = 0;
+  var covered = 0, potential = 0, exceptions = 0, excluded = 0, identified = 0, accounts = 0;
   filtered.forEach(function (e) {
     var entry = state.zipDataMap[e.postcode];
     if (!entry) return;
@@ -205,6 +206,7 @@ export function updateStats() {
     else if (eff === "potential") potential++;
     else if (eff === "exception") exceptions++;
     else if (eff === "excluded") excluded++;
+    else if (eff === "identified") identified++;
     accounts += entry.sfdc_account_count || 0;
   });
 
@@ -221,6 +223,8 @@ export function updateStats() {
   if (anomEl) anomEl.textContent = exceptions;
   var exclEl = document.getElementById("statExcluded");
   if (exclEl) exclEl.textContent = excluded;
+  var idEl = document.getElementById("statIdentified");
+  if (idEl) idEl.textContent = identified;
 }
 
 // ==================== Legend ====================
@@ -233,6 +237,7 @@ export function updateLegend() {
   if (state.colorMode === "coverage") {
     addLegendItem(container, coverageColors.covered, "Covered (in SFDC)");
     addLegendItem(container, coverageColors.potential, "Potential (not in SFDC)");
+    addLegendItem(container, coverageColors.identified, "Identified (new targets)");
     if (!filtersActive) {
       addLegendItem(container, "#e8ecf0", "Unmatched");
     }
@@ -240,12 +245,14 @@ export function updateLegend() {
     data.managers.forEach(function (m) {
       addLegendItem(container, data.manager_colors[m], m);
     });
+    addLegendItem(container, coverageColors.identified, "Identified (new targets)");
     addLegendItem(container, coverageColors.exception, "Exception (SFDC only)");
     addLegendItem(container, coverageColors.excluded, "Excluded");
   } else if (state.colorMode === "territory") {
     data.territories.forEach(function (t) {
-      addLegendItem(container, data.territory_colors[t], t.replace("CMD_EMEA_CH_AM_", "AM "));
+      addLegendItem(container, data.territory_colors[t], t.replace("CMD_EMEA_CH_AM_", "AM ").replace("CMD_EMEA_CHAM_", "AM "));
     });
+    addLegendItem(container, coverageColors.identified, "Identified (new targets)");
     addLegendItem(container, coverageColors.exception, "Exception (SFDC only)");
     addLegendItem(container, coverageColors.excluded, "Excluded");
   }
@@ -307,7 +314,7 @@ export function renderAnomalyTable(searchUnmatchedZips) {
 
     tr.innerHTML =
       "<td><strong>" + row.postcode + "</strong></td>" +
-      "<td>" + escapeHTML(row.sfdc_territories.join(", ").replace(/CMD_EMEA_CH_AM_/g, "AM ")) + "</td>" +
+      "<td>" + escapeHTML(row.sfdc_territories.join(", ").replace(/CMD_EMEA_CH_AM_/g, "AM ").replace(/CMD_EMEA_CHAM_/g, "AM ")) + "</td>" +
       "<td>" + escapeHTML(row.sfdc_managers.join(", ")) + "</td>" +
       "<td>" + row.sfdc_account_count + "</td>" +
       "<td>" + accountNames + "</td>" +
