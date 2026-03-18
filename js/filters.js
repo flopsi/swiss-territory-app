@@ -102,6 +102,7 @@ export function onSearchChange() {
   var q = state.filterSearch;
   if (!q) {
     fb.style.display = "none";
+    state.searchMatchedZips = {};
     // Reset map zoom to full extent
     if (state.geoLayer && state.map) {
       state.map.fitBounds(state.geoLayer.getBounds(), { padding: [16, 16] });
@@ -125,6 +126,12 @@ export function onSearchChange() {
     if (zip.indexOf(ql) >= 0 || city.indexOf(ql) >= 0) {
       matchedZips.push(allZips[i]);
     }
+  }
+
+  // Update search highlight state
+  state.searchMatchedZips = {};
+  for (var si = 0; si < matchedZips.length; si++) {
+    state.searchMatchedZips[matchedZips[si]] = true;
   }
 
   // Build feedback message

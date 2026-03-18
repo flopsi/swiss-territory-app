@@ -8,7 +8,7 @@ import {
   getUsingPersistedData, buildZipDataMap,
 } from "./state.js";
 import {
-  probeBackend, isBackendMode, login, logout,
+  probeBackend, isBackendMode, isViewOnly, login, logout,
   loadSavedState, loadAppData, loadTopoJSON, uploadExcludedZips,
 } from "./api.js";
 import {
@@ -21,7 +21,7 @@ import {
   onFilterChange, onSearchChange, updateStats, updateLegend, renderAnomalyTable,
 } from "./filters.js";
 import { queryZefix, updateZefixSelectionCount, exportZefixResults, queueSelectedZefixForNotion } from "./zefix.js";
-import { exportAnomalies, exportExcludedZips, exportSelectedZips } from "./exports.js";
+import { exportAnomalies, exportExcludedZips, exportIdentifiedZips, exportSelectedZips } from "./exports.js";
 import { setupUploadEvents, showResetDataButton } from "./uploads.js";
 
 // ==================== Login Screen ====================
@@ -68,6 +68,36 @@ function setupLogoutButton() {
       window.location.reload();
     });
   });
+}
+
+// ==================== View-Only Mode ====================
+function disableWriteControls() {
+  // Disable buttons that modify persisted state
+  var writeButtons = [
+    "btnMarkExcluded", "btnMarkIdentified", "btnProcessUpload",
+    "btnUploadExcluded", "btnResetData", "queueNotionBatch",
+  ];
+  writeButtons.forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) {
+      el.disabled = true;
+      el.title = "View-only account — modifications not permitted";
+    }
+  });
+  // Hide upload sections entirely
+  var uploadSections = ["excludedUploadSection"];
+  uploadSections.forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.style.display = "none";
+  });
+  // Collapse upload data section
+  var uploadDetails = document.querySelector("details.sidebar-section-collapsible");
+  if (uploadDetails) {
+    var summary = uploadDetails.querySelector("summary");
+    if (summary && summary.textContent.indexOf("Upload") >= 0) {
+      uploadDetails.style.display = "none";
+    }
+  }
 }
 
 // ==================== Excluded ZIP Upload ====================
@@ -171,12 +201,7 @@ function initApp() {
     }
 
     state.excludedZips = savedState.excluded_zips || {};
-
-    // Load identified ZIPs from localStorage
-    try {
-      var savedIdentified = localStorage.getItem("swiss_territory_identified");
-      if (savedIdentified) state.identifiedZips = JSON.parse(savedIdentified);
-    } catch (e) { /* ignore */ }
+    state.identifiedZips = savedState.identified_zips || {};
 
     if (topoData) {
       window.CH_PLZ_TOPOJSON = topoData;
@@ -201,8 +226,12 @@ function initApp() {
     renderAnomalyTable();
 
     if (isBackendMode()) {
-      document.getElementById("lastUpdated").textContent = "Data: loaded from server";
+      var roleLabel = isViewOnly() ? " (view-only)" : "";
+      document.getElementById("lastUpdated").textContent = "Data: loaded from server" + roleLabel;
       setupLogoutButton();
+      if (isViewOnly()) {
+        disableWriteControls();
+      }
     } else if (getUsingPersistedData()) {
       document.getElementById("lastUpdated").textContent = "Data: uploaded (persisted)";
       showResetDataButton();
@@ -339,6 +368,7 @@ function setupEventListeners() {
   // Export buttons
   document.getElementById("exportAnomalies").addEventListener("click", exportAnomalies);
   document.getElementById("exportExcluded").addEventListener("click", exportExcludedZips);
+  document.getElementById("exportIdentified").addEventListener("click", exportIdentifiedZips);
 
   // ZEFIX panel
   document.getElementById("closeZefix").addEventListener("click", function () {

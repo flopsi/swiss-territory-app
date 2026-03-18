@@ -7,22 +7,10 @@ import { escapeHTML, downloadCSV } from "./utils.js";
 import { apiRequest } from "./api.js";
 
 // ==================== SPARQL / ZEFIX Query ====================
-export function queryZefix() {
-  var zips = Object.keys(state.selectedZips).sort();
-  if (zips.length === 0 || zips.length > 10) return;
+var ZEFIX_PAGE_SIZE = 10000; // Large page size — no artificial limit
 
-  var panel = document.getElementById("zefixPanel");
-  var statusEl = document.getElementById("zefixStatus");
-  var tbody = document.getElementById("zefixBody");
-
-  panel.style.display = "flex";
-  statusEl.textContent = "Querying ZEFIX for " + zips.length + " ZIP code" + (zips.length > 1 ? "s" : "") + "...";
-  statusEl.className = "zefix-status zefix-loading";
-  tbody.innerHTML = "";
-
-  var valuesClause = zips.map(function (z) { return '"' + z + '"'; }).join(" ");
-
-  var sparql = [
+function buildZefixSparql(valuesClause, offset) {
+  return [
     "PREFIX schema: <http://schema.org/>",
     "PREFIX admin: <https://schema.ld.admin.ch/>",
     "SELECT DISTINCT ?org ?legalName ?postalCode ?locality ?uid ?purpose",
@@ -41,10 +29,14 @@ export function queryZefix() {
     "  VALUES ?postalCode { " + valuesClause + " }",
     "}",
     "ORDER BY ?postalCode ?legalName",
-    "LIMIT 500",
+    "LIMIT " + ZEFIX_PAGE_SIZE,
+    "OFFSET " + offset,
   ].join("\n");
+}
 
-  fetch("https://int.lindas.admin.ch/query", {
+function fetchZefixPage(valuesClause, offset) {
+  var sparql = buildZefixSparql(valuesClause, offset);
+  return fetch("https://int.lindas.admin.ch/query", {
     method: "POST",
     headers: {
       "Content-Type": "application/sparql-query",
@@ -57,8 +49,7 @@ export function queryZefix() {
       return res.json();
     })
     .then(function (data) {
-      var bindings = data.results.bindings;
-      state.zefixResults = bindings.map(function (b) {
+      return data.results.bindings.map(function (b) {
         return {
           org: b.org ? b.org.value : "",
           legalName: b.legalName ? b.legalName.value : "",
@@ -68,9 +59,42 @@ export function queryZefix() {
           purpose: b.purpose ? b.purpose.value : "",
         };
       });
+    });
+}
 
+export function queryZefix() {
+  var zips = Object.keys(state.selectedZips).sort();
+  if (zips.length === 0 || zips.length > 10) return;
+
+  var panel = document.getElementById("zefixPanel");
+  var statusEl = document.getElementById("zefixStatus");
+  var tbody = document.getElementById("zefixBody");
+
+  panel.style.display = "flex";
+  statusEl.textContent = "Querying ZEFIX for " + zips.length + " ZIP code" + (zips.length > 1 ? "s" : "") + "...";
+  statusEl.className = "zefix-status zefix-loading";
+  tbody.innerHTML = "";
+
+  var valuesClause = zips.map(function (z) { return '"' + z + '"'; }).join(" ");
+  var allResults = [];
+
+  function fetchNextPage(offset) {
+    return fetchZefixPage(valuesClause, offset).then(function (pageResults) {
+      allResults = allResults.concat(pageResults);
+      statusEl.textContent = "Querying ZEFIX... " + allResults.length + " results so far";
+      if (pageResults.length === ZEFIX_PAGE_SIZE) {
+        // More results may exist, fetch next page
+        return fetchNextPage(offset + ZEFIX_PAGE_SIZE);
+      }
+      return allResults;
+    });
+  }
+
+  fetchNextPage(0)
+    .then(function (results) {
+      // Deduplicate
       var seen = {};
-      state.zefixResults = state.zefixResults.filter(function (r) {
+      state.zefixResults = results.filter(function (r) {
         var key = r.org + r.postalCode;
         if (seen[key]) return false;
         seen[key] = true;

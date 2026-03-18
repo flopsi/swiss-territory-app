@@ -16,6 +16,7 @@ const IS_VERCEL = !!process.env.VERCEL;
 const BLOB_PREFIX = "swiss-territory/";
 const BLOB_PATHS = {
   excluded: BLOB_PREFIX + "excluded.json",
+  identified: BLOB_PREFIX + "identified.json",
   dataset: BLOB_PREFIX + "uploaded-dataset.json",
   datasetMeta: BLOB_PREFIX + "uploaded-at.json",
 };
@@ -24,6 +25,7 @@ const BLOB_PATHS = {
 const SERVER_DATA_DIR = path.join(__dirname, "server-data");
 const LOCAL_PATHS = {
   excluded: path.join(SERVER_DATA_DIR, "excluded.json"),
+  identified: path.join(SERVER_DATA_DIR, "identified.json"),
   dataset: path.join(SERVER_DATA_DIR, "uploaded-dataset.json"),
   datasetMeta: path.join(SERVER_DATA_DIR, "uploaded-at.json"),
 };
@@ -154,6 +156,30 @@ async function putExcluded(data) {
 }
 
 /**
+ * Read identified ZIPs map. Returns {} if not found.
+ */
+async function getIdentified() {
+  if (IS_VERCEL) {
+    if (!isBlobConfigured()) return {};
+    return await blobGet(BLOB_PATHS.identified, {});
+  }
+  return localGet(LOCAL_PATHS.identified, {});
+}
+
+/**
+ * Write identified ZIPs map.
+ */
+async function putIdentified(data) {
+  if (IS_VERCEL) {
+    if (!isBlobConfigured()) {
+      throw new Error("BLOB_READ_WRITE_TOKEN is not set. Cannot persist identified ZIPs.");
+    }
+    return await blobPut(BLOB_PATHS.identified, data);
+  }
+  localPut(LOCAL_PATHS.identified, data);
+}
+
+/**
  * Read uploaded dataset. Returns null if not found.
  */
 async function getDataset() {
@@ -209,12 +235,14 @@ async function clearAll() {
     if (!isBlobConfigured()) return;
     await Promise.all([
       blobDel(BLOB_PATHS.excluded),
+      blobDel(BLOB_PATHS.identified),
       blobDel(BLOB_PATHS.dataset),
       blobDel(BLOB_PATHS.datasetMeta),
     ]);
     return;
   }
   localDel(LOCAL_PATHS.excluded);
+  localDel(LOCAL_PATHS.identified);
   localDel(LOCAL_PATHS.dataset);
   localDel(LOCAL_PATHS.datasetMeta);
 }
@@ -223,6 +251,8 @@ module.exports = {
   isBlobConfigured: isBlobConfigured,
   getExcluded: getExcluded,
   putExcluded: putExcluded,
+  getIdentified: getIdentified,
+  putIdentified: putIdentified,
   getDataset: getDataset,
   putDataset: putDataset,
   getDatasetMeta: getDatasetMeta,

@@ -39,6 +39,12 @@ const ADMIN_HASH =
   process.env.ADMIN_PASSWORD_HASH ||
   bcryptjs.hashSync(process.env.ADMIN_PASSWORD || "changeme", 10);
 
+// View-only management user (can inspect but not modify data)
+const VIEWER_USER = process.env.VIEWER_USER || "viewer";
+const VIEWER_HASH =
+  process.env.VIEWER_PASSWORD_HASH ||
+  bcryptjs.hashSync(process.env.VIEWER_PASSWORD || "viewonly", 10);
+
 const SESSION_SECRET = process.env.SESSION_SECRET || "dev-secret-change-me";
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "").split(",").filter(Boolean);
 
@@ -114,6 +120,15 @@ function requireAuth(req, res, next) {
   return res.status(401).json({ error: "Authentication required" });
 }
 
+// Require write (admin) role — blocks view-only users from modifying data
+function requireWrite(req, res, next) {
+  if (req.session && req.session.authenticated && req.session.role === "admin") return next();
+  if (req.session && req.session.authenticated) {
+    return res.status(403).json({ error: "View-only account. Modifications not permitted." });
+  }
+  return res.status(401).json({ error: "Authentication required" });
+}
+
 // --------------- Static files ---------------
 // Block direct access to data/ directory BEFORE static middleware
 // (express.static's setHeaders only sets status but still sends the file body)
@@ -133,16 +148,21 @@ app.post("/api/login", function (req, res) {
   var username = (req.body.username || "").trim();
   var password = req.body.password || "";
 
-  if (username !== ADMIN_USER) {
-    return res.status(401).json({ error: "Invalid credentials" });
+  // Determine which user is logging in
+  var role = null;
+  if (username === ADMIN_USER && bcryptjs.compareSync(password, ADMIN_HASH)) {
+    role = "admin";
+  } else if (username === VIEWER_USER && bcryptjs.compareSync(password, VIEWER_HASH)) {
+    role = "viewer";
   }
 
-  if (!bcryptjs.compareSync(password, ADMIN_HASH)) {
+  if (!role) {
     return res.status(401).json({ error: "Invalid credentials" });
   }
 
   req.session.authenticated = true;
   req.session.user = username;
+  req.session.role = role;
 
   // Set CSRF cookie for subsequent requests
   var crypto = require("crypto");
@@ -153,7 +173,7 @@ app.post("/api/login", function (req, res) {
     sameSite: "lax",
   });
 
-  res.json({ ok: true, csrf_token: csrfToken });
+  res.json({ ok: true, csrf_token: csrfToken, role: role });
 });
 
 app.post("/api/logout", requireAuth, function (req, res) {
@@ -166,7 +186,7 @@ app.post("/api/logout", requireAuth, function (req, res) {
 
 app.get("/api/me", function (req, res) {
   if (req.session && req.session.authenticated) {
-    return res.json({ authenticated: true, user: req.session.user });
+    return res.json({ authenticated: true, user: req.session.user, role: req.session.role || "admin" });
   }
   res.json({ authenticated: false });
 });
@@ -218,7 +238,7 @@ app.get("/api/excluded", requireAuth, function (_req, res) {
     });
 });
 
-app.post("/api/excluded", requireAuth, function (req, res) {
+app.post("/api/excluded", requireWrite, function (req, res) {
   var map = req.body;
   if (typeof map !== "object" || Array.isArray(map)) {
     return res.status(400).json({ error: "Expected object mapping ZIP -> timestamp" });
@@ -231,7 +251,7 @@ app.post("/api/excluded", requireAuth, function (req, res) {
     });
 });
 
-app.post("/api/upload-excluded", requireAuth, function (req, res) {
+app.post("/api/upload-excluded", requireWrite, function (req, res) {
   var zips = req.body.zips;
   if (!Array.isArray(zips)) {
     return res.status(400).json({ error: "Expected { zips: string[] }" });
@@ -267,8 +287,31 @@ app.post("/api/upload-excluded", requireAuth, function (req, res) {
     });
 });
 
+// --------------- Identified ZIPs (durable storage) ---------------
+app.get("/api/identified", requireAuth, function (_req, res) {
+  storage.getIdentified()
+    .then(function (data) { res.json(data); })
+    .catch(function (err) {
+      console.error("Failed to read identified ZIPs:", err.message);
+      res.json({});
+    });
+});
+
+app.post("/api/identified", requireWrite, function (req, res) {
+  var map = req.body;
+  if (typeof map !== "object" || Array.isArray(map)) {
+    return res.status(400).json({ error: "Expected object mapping ZIP -> timestamp" });
+  }
+  storage.putIdentified(map)
+    .then(function () { res.json({ saved: true }); })
+    .catch(function (err) {
+      console.error("Failed to save identified ZIPs:", err.message);
+      res.status(500).json({ error: err.message });
+    });
+});
+
 // --------------- Dataset endpoints (durable storage) ---------------
-app.post("/api/dataset", requireAuth, function (req, res) {
+app.post("/api/dataset", requireWrite, function (req, res) {
   var data = req.body;
   if (!data || !data.merged) {
     return res.status(400).json({ error: "Invalid dataset format" });
@@ -285,7 +328,7 @@ app.post("/api/dataset", requireAuth, function (req, res) {
     });
 });
 
-app.delete("/api/dataset", requireAuth, function (_req, res) {
+app.delete("/api/dataset", requireWrite, function (_req, res) {
   storage.clearAll()
     .then(function () { res.json({ cleared: true }); })
     .catch(function (err) {

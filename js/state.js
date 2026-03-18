@@ -33,6 +33,7 @@ export var state = {
   anomalyZips: {},
   topoFeatures: [],
   topoFeaturesById: {},
+  searchMatchedZips: {},
   zefixResults: [],
   zefixChecked: [],
   undoStack: [],

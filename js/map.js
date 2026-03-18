@@ -7,7 +7,7 @@ import {
   hasActiveFilters, isFiltered, getExceptionInfo, coverageColors,
 } from "./state.js";
 import { escapeHTML } from "./utils.js";
-import { saveExcluded } from "./api.js";
+import { saveExcluded, saveIdentified } from "./api.js";
 
 // ==================== Map Setup ====================
 export function setupMap() {
@@ -139,6 +139,7 @@ function styleFeature(feature) {
   var entry = state.zipDataMap[zip];
   var filtered = isFiltered(entry);
   var isSelected = state.selectedZips[zip];
+  var isSearchMatch = state.searchMatchedZips[zip];
   var filtersActive = hasActiveFilters();
 
   if (isSelected) {
@@ -148,6 +149,16 @@ function styleFeature(feature) {
       weight: 1.5,
       color: "#1d4ed8",
       opacity: 0.9,
+    };
+  }
+
+  if (isSearchMatch) {
+    return {
+      fillColor: "#f59e0b",
+      fillOpacity: 0.65,
+      weight: 2.5,
+      color: "#d97706",
+      opacity: 1,
     };
   }
 
@@ -354,8 +365,7 @@ export function markSelectedIdentified() {
   zips.forEach(function (zip) {
     state.identifiedZips[zip] = now;
   });
-  // Persist to localStorage
-  try { localStorage.setItem("swiss_territory_identified", JSON.stringify(state.identifiedZips)); } catch (e) { /* ignore */ }
+  saveIdentified(state.identifiedZips);
 
   state.selectedZips = {};
   refreshStyles();
@@ -412,7 +422,7 @@ export function undoLastAction() {
         delete state.identifiedZips[zip];
       }
     });
-    try { localStorage.setItem("swiss_territory_identified", JSON.stringify(state.identifiedZips)); } catch (e) { /* ignore */ }
+    saveIdentified(state.identifiedZips);
     refreshStyles();
     if (_onExcludeCallback) _onExcludeCallback();
   }
