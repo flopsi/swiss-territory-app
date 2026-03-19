@@ -9,6 +9,11 @@ import {
 import { escapeHTML, animateNumber } from "./utils.js";
 import { refreshStyles, renderTerritoryBorders } from "./map.js";
 
+// Strip diacritics for fuzzy city search (Zürich → Zurich, Genève → Geneve)
+function _stripDiacritics(str) {
+  return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
 // ==================== Populate Selects ====================
 export function populateSelects() {
   var data = getActiveData();
@@ -112,7 +117,7 @@ export function onSearchChange() {
     return;
   }
 
-  var ql = q.toLowerCase();
+  var ql = _stripDiacritics(q.toLowerCase());
   var isZipQuery = /^\d+$/.test(q);
 
   // Count matching ZIPs in the dataset
@@ -122,7 +127,7 @@ export function onSearchChange() {
     var entry = state.zipDataMap[allZips[i]];
     if (!entry) continue;
     var zip = (entry.postcode || "").toLowerCase();
-    var city = (entry.official_city || "").toLowerCase();
+    var city = _stripDiacritics((entry.official_city || "").toLowerCase());
     if (zip.indexOf(ql) >= 0 || city.indexOf(ql) >= 0) {
       matchedZips.push(allZips[i]);
     }

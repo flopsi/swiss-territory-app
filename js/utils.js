@@ -90,6 +90,8 @@ var TERRITORY_ALIASES = {
   "Postcode": ["Postcode", "postcode", "Postal Code", "PostalCode", "ZIP", "Zip", "zip", "PLZ"],
   "Territory_ID": ["Territory_ID", "Territory ID", "TerritoryID", "Territory", "territory_id"],
   "AM 2026": ["AM 2026", "AM2026", "Account Manager", "AccountManager", "AM"],
+  "Official City": ["Official City", "official_city", "City", "city", "Locality", "locality", "Ort", "ort", "Mailing City", "Billing City"],
+  "Canton": ["Canton", "canton", "Kt", "KT", "Kanton"],
 };
 
 // Remap row keys to canonical names using alias maps.

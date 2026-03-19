@@ -26,12 +26,14 @@ function preprocessUploadedCSVs(sfdcRows, territoryRows) {
     if (!z) return;
     var tid = (row["Territory_ID"] || row["Territory ID"] || "").trim();
     var am = (row["AM 2026"] || "").trim();
+    var city = (row["Official City"] || row["City"] || row["Locality"] || row["Ort"] || row["Mailing City"] || row["Billing City"] || "").trim();
+    var canton = (row["Canton"] || row["Kt"] || "").trim();
     masterByZip[z] = {
       postcode: z,
       territory_id: tid,
       account_manager: am,
-      official_city: "",
-      canton: "",
+      official_city: city,
+      canton: canton,
     };
   });
 
@@ -53,6 +55,16 @@ function preprocessUploadedCSVs(sfdcRows, territoryRows) {
     });
     var mgr = (row["CMD Account Manager"] || "").trim();
     if (mgr) sfdcByZip[z].managers[mgr] = (sfdcByZip[z].managers[mgr] || 0) + 1;
+
+    if (!masterByZip[z]) {
+      var fallbackCity = (row["Billing City"] || row["Mailing City"] || "").trim();
+      if (fallbackCity) {
+        if (!sfdcByZip[z].official_city) sfdcByZip[z].official_city = fallbackCity;
+      }
+    } else if (!masterByZip[z].official_city) {
+      var masterFallbackCity = (row["Billing City"] || row["Mailing City"] || "").trim();
+      if (masterFallbackCity) masterByZip[z].official_city = masterFallbackCity;
+    }
   });
 
   // --- Infer account managers from SFDC when territory file lacks AM column ---
@@ -139,6 +151,7 @@ function preprocessUploadedCSVs(sfdcRows, territoryRows) {
       entry.sfdc_managers = Object.keys(sdata.managers).map(mapManager).sort();
       entry.sfdc_territories = [mdata.territory_id];
       entry.status = "covered";
+      if (!entry.official_city && sdata.official_city) entry.official_city = sdata.official_city;
     } else {
       entry.in_sfdc = false;
       entry.sfdc_account_count = 0;
@@ -211,7 +224,7 @@ function preprocessUploadedCSVs(sfdcRows, territoryRows) {
           postcode: z,
           territory_id: assignedTerritory,
           account_manager: assignedManager,
-          official_city: "",
+          official_city: sd.official_city || "",
           canton: "",
           in_sfdc: true,
           sfdc_account_count: sd.accounts.length,

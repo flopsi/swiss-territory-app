@@ -122,6 +122,21 @@
           </div>
         </div>
 
+        <!-- Non-Map ZIP Search & Entry -->
+        <div class="sidebar-section" id="nonMapSection" style="display:none;">
+          <div class="section-heading">NON-MAP ZIPS <span class="nonmap-count-badge" id="nonMapCount">0</span></div>
+          <div class="section-body">
+            <p class="filter-hint" style="margin-bottom:6px;">ZIPs without map polygons (PO boxes, sub-delivery areas). Search or enter multiple ZIPs to select them.</p>
+            <div class="nonmap-input-row">
+              <input type="text" id="nonMapInput" class="filter-select" placeholder="Search or enter ZIPs (e.g. 8000, 1211, 3001)" autocomplete="off">
+              <button class="tray-btn tray-btn-primary nonmap-add-btn" id="btnAddNonMapZips" title="Add entered ZIPs to selection">Add</button>
+            </div>
+            <div id="nonMapSuggestions" class="nonmap-suggestions" style="display:none;"></div>
+            <div id="nonMapFeedback" class="nonmap-feedback" style="display:none;"></div>
+            <div id="nonMapChips" class="nonmap-chips"></div>
+          </div>
+        </div>
+
         <!-- Filters section (flat, no collapsible) -->
         <div class="sidebar-section">
           <div class="section-heading">FILTERS</div>

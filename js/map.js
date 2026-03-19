@@ -398,17 +398,21 @@ export function markSelectedIdentified() {
   var zips = Object.keys(state.selectedZips);
   if (zips.length === 0) return;
 
-  var undoEntry = { type: "identify", zips: zips, previous: {} };
+  var undoEntry = { type: "identify", zips: zips, previousIdentified: {}, previousExcluded: {} };
   zips.forEach(function (zip) {
-    undoEntry.previous[zip] = state.identifiedZips[zip] || null;
+    undoEntry.previousIdentified[zip] = state.identifiedZips[zip] || null;
+    undoEntry.previousExcluded[zip] = state.excludedZips[zip] || null;
   });
   state.undoStack.push(undoEntry);
 
   var now = new Date().toISOString();
   zips.forEach(function (zip) {
     state.identifiedZips[zip] = now;
+    // Overwrite: remove from excluded when marking identified
+    delete state.excludedZips[zip];
   });
   saveIdentified(state.identifiedZips);
+  saveExcluded(state.excludedZips);
 
   state.selectedZips = {};
   refreshStyles();
@@ -421,22 +425,25 @@ export function markSelectedExcluded() {
   var zips = Object.keys(state.selectedZips);
   if (zips.length === 0) return;
 
-  var undoEntry = { type: "exclude", zips: zips, previous: {} };
+  var undoEntry = { type: "exclude", zips: zips, previousExcluded: {}, previousIdentified: {} };
   zips.forEach(function (zip) {
-    undoEntry.previous[zip] = state.excludedZips[zip] || null;
+    undoEntry.previousExcluded[zip] = state.excludedZips[zip] || null;
+    undoEntry.previousIdentified[zip] = state.identifiedZips[zip] || null;
   });
   state.undoStack.push(undoEntry);
 
   var now = new Date().toISOString();
   zips.forEach(function (zip) {
     state.excludedZips[zip] = now;
+    // Overwrite: remove from identified when marking excluded
+    delete state.identifiedZips[zip];
   });
   saveExcluded(state.excludedZips);
+  saveIdentified(state.identifiedZips);
 
   state.selectedZips = {};
   refreshStyles();
   updateSelectionTray();
-  // These will be called from the wired-up callbacks
   if (_onExcludeCallback) _onExcludeCallback();
 }
 
@@ -446,26 +453,42 @@ export function undoLastAction() {
 
   if (entry.type === "exclude") {
     entry.zips.forEach(function (zip) {
-      if (entry.previous[zip]) {
-        state.excludedZips[zip] = entry.previous[zip];
+      // Restore excluded state
+      if (entry.previousExcluded[zip]) {
+        state.excludedZips[zip] = entry.previousExcluded[zip];
       } else {
         delete state.excludedZips[zip];
       }
+      // Restore identified state (may have been removed by overwrite)
+      if (entry.previousIdentified && entry.previousIdentified[zip]) {
+        state.identifiedZips[zip] = entry.previousIdentified[zip];
+      } else if (entry.previousIdentified) {
+        delete state.identifiedZips[zip];
+      }
     });
     saveExcluded(state.excludedZips);
+    saveIdentified(state.identifiedZips);
     refreshStyles();
     if (_onExcludeCallback) _onExcludeCallback();
   }
 
   if (entry.type === "identify") {
     entry.zips.forEach(function (zip) {
-      if (entry.previous[zip]) {
-        state.identifiedZips[zip] = entry.previous[zip];
+      // Restore identified state
+      if (entry.previousIdentified[zip]) {
+        state.identifiedZips[zip] = entry.previousIdentified[zip];
       } else {
         delete state.identifiedZips[zip];
       }
+      // Restore excluded state (may have been removed by overwrite)
+      if (entry.previousExcluded && entry.previousExcluded[zip]) {
+        state.excludedZips[zip] = entry.previousExcluded[zip];
+      } else if (entry.previousExcluded) {
+        delete state.excludedZips[zip];
+      }
     });
     saveIdentified(state.identifiedZips);
+    saveExcluded(state.excludedZips);
     refreshStyles();
     if (_onExcludeCallback) _onExcludeCallback();
   }

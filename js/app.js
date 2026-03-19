@@ -5,7 +5,7 @@
 import {
   state, getActiveData, setActiveData, setUsingPersistedData,
   setSavedStateLoaded, setSavedUploadedAt,
-  getUsingPersistedData, buildZipDataMap,
+  getUsingPersistedData, buildZipDataMap, buildNonMapZips,
 } from "./state.js";
 import {
   probeBackend, isBackendMode, isViewOnly, login, logout,
@@ -25,6 +25,7 @@ import { exportAnomalies, exportExcludedZips, exportIdentifiedZips, exportSelect
 import { setupUploadEvents, showResetDataButton } from "./uploads.js";
 import { runSonarSearch, refreshCostDisplay, refreshAMSummary, refreshLeaderboard, updateMemoryCount, downloadSonarCSV } from "./perplexity.js";
 import { initAnalytics, trackEvent } from "./analytics.js";
+import { setupNonMapPanel, renderNonMapChips } from "./nonmap.js";
 
 // ==================== Login Screen ====================
 function showLoginScreen() {
@@ -220,11 +221,13 @@ function initApp() {
     buildZipDataMap();
     setupMap();
     loadBoundaries();
+    buildNonMapZips();  // Must run after loadBoundaries populates topoFeaturesById
     populateSelects();
     populateAMButtons();
     setupEventListeners();
     setupUploadEvents();
     setupExcludedUpload();
+    setupNonMapPanel();
     updateStats();
     updateLegend();
     renderAnomalyTable();

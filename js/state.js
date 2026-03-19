@@ -39,6 +39,7 @@ export var state = {
   zefixChecked: [],
   undoStack: [],
   anomalyMarkerLayer: null,
+  nonMapZips: {},
 };
 
 // ==================== Color Helpers ====================
@@ -182,8 +183,8 @@ export function buildZipDataMap() {
         postcode: row.postcode,
         territory_id: (row.sfdc_territories && row.sfdc_territories[0]) || "",
         account_manager: (row.sfdc_managers && row.sfdc_managers[0]) || "",
-        official_city: "",
-        canton: "",
+        official_city: row.official_city || "",
+        canton: row.canton || "",
         in_sfdc: true,
         sfdc_account_count: row.sfdc_account_count,
         sfdc_accounts: row.sfdc_accounts,
@@ -192,8 +193,27 @@ export function buildZipDataMap() {
         status: "exception",
         _anomaly: true,
       };
+    } else {
+      if (!state.zipDataMap[row.postcode].official_city && row.official_city) {
+        state.zipDataMap[row.postcode].official_city = row.official_city;
+      }
+      if (!state.zipDataMap[row.postcode].canton && row.canton) {
+        state.zipDataMap[row.postcode].canton = row.canton;
+      }
     }
   });
+}
+
+// ==================== Build Non-Map ZIP Set ====================
+// Call AFTER loadBoundaries() so topoFeaturesById is populated
+export function buildNonMapZips() {
+  state.nonMapZips = {};
+  var allDataZips = Object.keys(state.zipDataMap);
+  for (var i = 0; i < allDataZips.length; i++) {
+    if (!state.topoFeaturesById[allDataZips[i]]) {
+      state.nonMapZips[allDataZips[i]] = true;
+    }
+  }
 }
 
 // ==================== ZEFIX Column Config ====================
