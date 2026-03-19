@@ -244,6 +244,7 @@ export function clearPersistedDataset() {
   removeLS(LS_KEY_DATASET);
   removeLS(LS_KEY_UPLOADED_AT);
   removeLS(LS_KEY_EXCLUDED);
+  removeLS(LS_KEY_IDENTIFIED);
   return Promise.resolve(null);
 }
 

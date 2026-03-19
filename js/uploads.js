@@ -281,15 +281,52 @@ export function refreshAppWithData(newData, options) {
   setActiveData(newData);
   window.APP_DATA = newData;
 
-  if (Object.prototype.hasOwnProperty.call(options, "excludedZips")) {
-    state.excludedZips = options.excludedZips || {};
+  // Build a set of valid ZIPs in the new dataset so we can safely filter
+  // persisted state rather than blindly clearing it.
+  var newZipSet = {};
+  if (newData && newData.merged) {
+    newData.merged.forEach(function (e) { if (e.postcode) newZipSet[e.postcode] = true; });
+  }
+  if (newData && newData.sfdc_only) {
+    newData.sfdc_only.forEach(function (e) { if (e.postcode) newZipSet[e.postcode] = true; });
   }
 
-  // Reset state
+  // Preserve excluded ZIPs: use explicitly supplied value, fall through to current
+  // live state filtered to ZIPs that still exist in the new dataset.
+  if (Object.prototype.hasOwnProperty.call(options, "excludedZips")) {
+    state.excludedZips = options.excludedZips || {};
+  } else if (Object.prototype.hasOwnProperty.call(options, "preserveExcluded") && !options.preserveExcluded) {
+    state.excludedZips = {};
+  } else {
+    // Default: retain all persisted excluded ZIPs that are still valid in the new dataset.
+    var prevExcluded = state.excludedZips || {};
+    var filteredExcluded = {};
+    Object.keys(prevExcluded).forEach(function (z) {
+      if (newZipSet[z]) filteredExcluded[z] = prevExcluded[z];
+    });
+    state.excludedZips = filteredExcluded;
+  }
+
+  // Preserve identified ZIPs: use explicitly supplied value, fall through to current
+  // live state filtered to ZIPs that still exist in the new dataset.
+  if (Object.prototype.hasOwnProperty.call(options, "identifiedZips")) {
+    state.identifiedZips = options.identifiedZips || {};
+  } else if (Object.prototype.hasOwnProperty.call(options, "preserveIdentified") && !options.preserveIdentified) {
+    state.identifiedZips = {};
+  } else {
+    // Default: retain all persisted identified ZIPs that are still valid in the new dataset.
+    var prevIdentified = state.identifiedZips || {};
+    var filteredIdentified = {};
+    Object.keys(prevIdentified).forEach(function (z) {
+      if (newZipSet[z]) filteredIdentified[z] = prevIdentified[z];
+    });
+    state.identifiedZips = filteredIdentified;
+  }
+
+  // Reset volatile state (selection, search, etc.) — do NOT reset excluded/identified here.
   state.zipDataMap = {};
   state.anomalyZips = {};
   state.selectedZips = {};
-  state.identifiedZips = {};
   state.zefixResults = [];
   state.zefixChecked = [];
   state.filterManagers = [];
@@ -360,8 +397,9 @@ export function showResetDataButton() {
         setUsingPersistedData(false);
         setSavedUploadedAt(null);
         state.excludedZips = {};
+        state.identifiedZips = {};
         var bundled = typeof APP_DATA !== "undefined" ? APP_DATA : (window.APP_DATA || null);
-        refreshAppWithData(bundled, { persist: false, label: "Data: March 2026", excludedZips: {} });
+        refreshAppWithData(bundled, { persist: false, label: "Data: March 2026", excludedZips: {}, identifiedZips: {} });
         var rb = document.getElementById("btnResetData");
         if (rb) rb.remove();
       })
