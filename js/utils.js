@@ -2,7 +2,7 @@
  * utils.js — Shared utility functions.
  */
 
-// ==================== CSV Parser (RFC 4180) ====================
+// ==================== CSV Parser (RFC 4180, with auto-detected delimiter) ====================
 export function parseCSV(text) {
   var rows = [];
   var row = [];
@@ -12,6 +12,13 @@ export function parseCSV(text) {
   text = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   // Strip BOM
   if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+
+  // Auto-detect delimiter from the first line: if tabs outnumber commas, use tab.
+  // This supports SFDC exports which are tab-separated (CP1252 / TSV).
+  var firstLine = text.split("\n")[0] || "";
+  var tabCount = (firstLine.match(/\t/g) || []).length;
+  var commaCount = (firstLine.match(/,/g) || []).length;
+  var delimiter = tabCount > commaCount ? "\t" : ",";
 
   for (var i = 0; i < text.length; i++) {
     var ch = text[i];
@@ -29,7 +36,7 @@ export function parseCSV(text) {
     } else {
       if (ch === '"') {
         inQuote = true;
-      } else if (ch === ",") {
+      } else if (ch === delimiter) {
         row.push(field.trim());
         field = "";
       } else if (ch === "\n") {
