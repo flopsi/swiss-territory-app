@@ -3,7 +3,7 @@
  */
 
 // ==================== Active Data ====================
-export var activeData = typeof APP_DATA !== "undefined" ? APP_DATA : (window.APP_DATA || null);
+export var activeData = null;
 export var _usingPersistedData = false;
 export var _savedStateLoaded = false;
 export var _savedUploadedAt = null;
@@ -22,8 +22,10 @@ export var state = {
   filterManagers: [],       // multi-select array, [] = all
   filterTerritory: "",      // single select (v1 style), "" = all
   filterStatus: "",         // single select (v1 style), "" = all
+  filterSearch: "",         // ZIP/city search query
   selectedZips: {},
   excludedZips: {},
+  identifiedZips: {},       // ZIPs where new target accounts were found via ZEFIX
   geoLayer: null,
   markerLayer: null,
   territoryBorderLayer: null,
@@ -32,9 +34,11 @@ export var state = {
   anomalyZips: {},
   topoFeatures: [],
   topoFeaturesById: {},
+  searchMatchedZips: {},
   zefixResults: [],
   zefixChecked: [],
   undoStack: [],
+  anomalyMarkerLayer: null,
 };
 
 // ==================== Color Helpers ====================
@@ -44,6 +48,7 @@ export var coverageColors = {
   exception: "#dc2626",
   anomaly: "#dc2626",  // alias kept for backward compat
   excluded: "#8b5cf6",
+  identified: "#d946ef",  // Fuchsia for processed ZIPs with new target accounts
   unmatched: "#cbd5e1",
 };
 
@@ -74,6 +79,7 @@ export function getExceptionInfo(entry) {
 export function getEffectiveStatus(entry) {
   if (!entry) return "unmatched";
   if (state.excludedZips[entry.postcode]) return "excluded";
+  if (state.identifiedZips[entry.postcode]) return "identified";
   if (entry._anomaly) return "exception";
   return entry.status;
 }
@@ -86,16 +92,19 @@ export function getZipColor(entry) {
 
   if (state.colorMode === "coverage") {
     if (eff === "excluded") return coverageColors.excluded;
+    if (eff === "identified") return coverageColors.identified;
     if (eff === "exception") return coverageColors.exception;
     return eff === "covered" ? coverageColors.covered : coverageColors.potential;
   }
   if (state.colorMode === "manager") {
     if (eff === "excluded") return coverageColors.excluded;
+    if (eff === "identified") return coverageColors.identified;
     if (eff === "exception") return coverageColors.exception;
     return data.manager_colors[entry.account_manager] || "#cbd5e1";
   }
   if (state.colorMode === "territory") {
     if (eff === "excluded") return coverageColors.excluded;
+    if (eff === "identified") return coverageColors.identified;
     if (eff === "exception") return coverageColors.exception;
     return data.territory_colors[entry.territory_id] || "#cbd5e1";
   }
@@ -162,6 +171,7 @@ export function isFiltered(entry) {
 // ==================== Build ZIP Data Map ====================
 export function buildZipDataMap() {
   var data = getActiveData();
+  if (!data) return;
   data.merged.forEach(function (entry) {
     state.zipDataMap[entry.postcode] = entry;
   });

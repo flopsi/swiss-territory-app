@@ -47,6 +47,27 @@ export function exportExcludedZips() {
   downloadCSV("excluded_zips_export.csv", rows.map(function (r) { return r.join(","); }).join("\n"));
 }
 
+export function exportIdentifiedZips() {
+  var identifiedKeys = Object.keys(state.identifiedZips);
+  if (identifiedKeys.length === 0) { alert("No identified ZIPs."); return; }
+
+  var rows = [["ZIP", "City", "Canton", "Manager", "Territory", "Previous_Status", "Identified_At"]];
+  identifiedKeys.sort().forEach(function (zip) {
+    var entry = state.zipDataMap[zip];
+    var prevStatus = entry ? entry.status || "" : "";
+    rows.push([
+      zip,
+      entry ? entry.official_city || "" : "",
+      entry ? entry.canton || "" : "",
+      entry ? entry.account_manager || "" : "",
+      entry ? entry.territory_id || "" : "",
+      prevStatus,
+      state.identifiedZips[zip],
+    ]);
+  });
+  downloadCSV("identified_zips_export.csv", rows.map(function (r) { return r.join(","); }).join("\n"));
+}
+
 export function exportSelectedZips() {
   var keys = Object.keys(state.selectedZips);
   if (keys.length === 0) return;

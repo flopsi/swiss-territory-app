@@ -22,9 +22,16 @@ Thumbs.db
 *.swo
 *~
 
+# Server-side data (not used on GitHub Pages)
+server-data/
+.mcp.json
+
 # Environment
 .env
+.env.local
+.env.production
 .env.*
+!.env.example
 *.pem
 *.key
 
