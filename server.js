@@ -24,7 +24,14 @@ const app = express();
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const IS_VERCEL = !!process.env.VERCEL;
 
-// Rate limiter for filesystem-based dataset metadata endpoint
+// Rate limiter for filesystem-based endpoints
+const dataFileLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 const datasetMetaLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
@@ -193,7 +200,7 @@ app.get("/api/me", function (req, res) {
 
 // --------------- Data endpoints (authenticated, read-only) ---------------
 // Serve APP_DATA — reads from bundled data/data.js (no server-data/ dependency)
-app.get("/api/data", requireAuth, function (_req, res) {
+app.get("/api/data", requireAuth, dataFileLimiter, function (_req, res) {
   // On Vercel (or when server-data/ doesn't exist), serve bundled data directly
   if (!IS_VERCEL) {
     var serverDataPath = path.join(__dirname, "server-data", "data.json");
@@ -214,7 +221,7 @@ app.get("/api/data", requireAuth, function (_req, res) {
 });
 
 // Serve TopoJSON
-app.get("/api/topojson", requireAuth, function (_req, res) {
+app.get("/api/topojson", requireAuth, dataFileLimiter, function (_req, res) {
   if (!IS_VERCEL) {
     var serverTopoPath = path.join(__dirname, "server-data", "ch-plz.topojson");
     if (fs.existsSync(serverTopoPath)) {
