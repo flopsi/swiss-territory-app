@@ -103,83 +103,21 @@ export function renderGeoLayer() {
     onEachFeature: onEachFeature,
   }).addTo(state.map);
 
-  // Render circle markers for ZIPs that have data but no polygon
-  renderNoPolygonMarkers();
-
   if (state.territoryBorderLayer) {
     state.territoryBorderLayer.bringToFront();
   }
-
-  // Render circle markers for anomaly ZIPs without polygons
-  renderAnomalyMarkers();
 
   // Also update exception table when geo layer re-renders
   renderAnomalyTableIfReady();
 }
 
 // ==================== Markers for ZIPs Without Polygons ====================
-// Renders circle markers for ZIP codes that exist in the dataset but have
-// no TopoJSON polygon (e.g. 8093 ETH Zurich, sub-delivery areas, PO boxes).
-function renderNoPolygonMarkers() {
-  if (state.markerLayer) {
-    state.map.removeLayer(state.markerLayer);
-  }
-  state.markerLayer = L.layerGroup();
-
-  var filtersActive = hasActiveFilters();
-
-  Object.keys(state.zipDataMap).forEach(function (zip) {
-    // Skip ZIPs that already have a polygon
-    if (state.topoFeaturesById[zip]) return;
-
-    var entry = state.zipDataMap[zip];
-    if (!entry) return;
-
-    // Skip SFDC-only exception ZIPs — shown only in the warning table, not on the map
-    if (entry._anomaly) return;
-
-    // Look up coordinates from fallback table
-    var coords = FALLBACK_ZIP_COORDS[zip];
-    if (!coords) return;
-
-    var filtered = isFiltered(entry);
-    var isSelected = state.selectedZips[zip];
-
-    // When filters active and entry is filtered out, hide it
-    if (filtered && filtersActive) return;
-
-    var color = isSelected ? "#2563eb" : getZipColor(entry);
-    var opacity = (filtered && !filtersActive) ? 0.2 : 0.8;
-
-    var marker = L.circleMarker(coords, {
-      radius: isSelected ? 8 : 6,
-      fillColor: color,
-      fillOpacity: opacity,
-      weight: isSelected ? 2 : 1.5,
-      color: isSelected ? "#1d4ed8" : "#fff",
-      opacity: 0.9,
-    });
-
-    marker.bindTooltip(buildTooltip(zip, entry), {
-      sticky: true,
-      className: "zip-tooltip",
-      direction: "auto",
-    });
-
-    marker.on("click", function () {
-      toggleZipSelection(zip);
-    });
-
-    state.markerLayer.addLayer(marker);
-  });
-
-  state.markerLayer.addTo(state.map);
-}
-
-// renderAnomalyMarkers is subsumed by renderNoPolygonMarkers which covers
-// all ZIPs without polygons (not just anomalies) using FALLBACK_ZIP_COORDS.
+// No-polygon marker rendering is intentionally disabled.
+// ZIPs without TopoJSON polygons (sub-delivery areas, PO boxes, business
+// districts) are surfaced only in the Exceptions warning panel — not as
+// dot markers on the map.
 export function renderAnomalyMarkers() {
-  // no-op: renderNoPolygonMarkers handles all no-polygon ZIPs
+  // no-op: no-polygon ZIPs are shown only in the exception table, not on the map
 }
 
 // ==================== Territory Borders ====================
@@ -451,12 +389,8 @@ export function refreshStyles() {
       direction: "auto",
     });
   });
-  // Re-render markers for no-polygon ZIPs
-  renderNoPolygonMarkers();
   // Re-render territory borders to match filter state
   renderTerritoryBorders();
-  // Re-render anomaly markers (selection/filter state may have changed)
-  renderAnomalyMarkers();
 }
 
 // ==================== Mark as Identified ====================
