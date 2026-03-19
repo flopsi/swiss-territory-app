@@ -7,7 +7,7 @@ import {
   hasActiveFilters, isFiltered, getExceptionInfo, coverageColors,
 } from "./state.js";
 import { escapeHTML, animateNumber } from "./utils.js";
-import { refreshStyles, renderTerritoryBorders, FALLBACK_ZIP_COORDS } from "./map.js";
+import { refreshStyles, renderTerritoryBorders } from "./map.js";
 
 // ==================== Populate Selects ====================
 export function populateSelects() {
@@ -309,9 +309,8 @@ export function renderAnomalyTable(searchUnmatchedZips) {
   // Render standard SFDC-only exception rows
   data.sfdc_only.forEach(function (row) {
     var hasPolygon = !!state.topoFeaturesById[row.postcode];
-    // ZIPs without their own polygon are shown as circle markers via FALLBACK_ZIP_COORDS
-    var hasMarker = !hasPolygon && !!FALLBACK_ZIP_COORDS[row.postcode];
-    var onMap = hasPolygon || hasMarker;
+    // SFDC-only exception ZIPs are shown only in this warning table, not on the map
+    var onMap = hasPolygon;
     var tr = document.createElement("tr");
     var accountNames = row.sfdc_accounts
       .map(function (a) { return escapeHTML(a.name); })
@@ -322,7 +321,7 @@ export function renderAnomalyTable(searchUnmatchedZips) {
     var excInfo = getExceptionInfo(pseudoEntry);
     var reasonText = excInfo ? excInfo.category : "Not in territory file";
 
-    var mapLabel = hasPolygon ? "Polygon" : (hasMarker ? "Marker" : "No");
+    var mapLabel = hasPolygon ? "Polygon" : "No";
     var badgeClass = onMap ? "badge-yes" : "badge-no";
 
     tr.innerHTML =

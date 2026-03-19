@@ -1,6 +1,18 @@
 {
-  "assignedCount": 79,
+  "assignedCount": 127,
   "ambiguousCases": [
+    {
+      "zip": "1217",
+      "managers": [
+        "Daniel Grenno",
+        "Géraldine Larcher"
+      ],
+      "territories": [
+        "CMD_EMEA_CHAM_031",
+        "CMD_EMEA_CHAM_033"
+      ],
+      "chosen": "CMD_EMEA_CHAM_031"
+    },
     {
       "zip": "3012",
       "managers": [
@@ -26,6 +38,18 @@
       "chosen": "CMD_EMEA_CHAM_037"
     },
     {
+      "zip": "4005",
+      "managers": [
+        "Alessandro Spadaro",
+        "Jonas Morger"
+      ],
+      "territories": [
+        "CMD_EMEA_CHAM_032",
+        "CMD_EMEA_CHAM_037"
+      ],
+      "chosen": "CMD_EMEA_CHAM_032"
+    },
+    {
       "zip": "4031",
       "managers": [
         "Jonas Morger",
@@ -33,18 +57,6 @@
       ],
       "territories": [
         "CMD_EMEA_CHAM_037",
-        "CMD_EMEA_CHAM_035"
-      ],
-      "chosen": "CMD_EMEA_CHAM_037"
-    },
-    {
-      "zip": "4051",
-      "managers": [
-        "Géraldine Larcher",
-        "Michel Hofmeier"
-      ],
-      "territories": [
-        "CMD_EMEA_CHAM_033",
         "CMD_EMEA_CHAM_035"
       ],
       "chosen": "CMD_EMEA_CHAM_035"
@@ -76,14 +88,30 @@
     {
       "zip": "4058",
       "managers": [
+        "Alessandro Spadaro",
+        "Florian Marty",
         "Jonas Morger",
         "Michel Hofmeier"
       ],
       "territories": [
+        "CMD_EMEA_CHAM_032",
+        "CMD_EMEA_CHAM_030",
         "CMD_EMEA_CHAM_037",
         "CMD_EMEA_CHAM_035"
       ],
       "chosen": "CMD_EMEA_CHAM_037"
+    },
+    {
+      "zip": "6601",
+      "managers": [
+        "Alessandro Spadaro",
+        "Michel Hofmeier"
+      ],
+      "territories": [
+        "CMD_EMEA_CHAM_032",
+        "CMD_EMEA_CHAM_035"
+      ],
+      "chosen": "CMD_EMEA_CHAM_032"
     },
     {
       "zip": "8092",
@@ -100,27 +128,32 @@
   ],
   "unresolvedZips": [
     {
-      "zip": "2503",
+      "zip": "0001",
       "managers": [],
       "accounts": 1
     },
     {
-      "zip": "6996",
+      "zip": "0402",
       "managers": [],
       "accounts": 1
     },
     {
-      "zip": "8022",
+      "zip": "8034",
+      "managers": [],
+      "accounts": 1
+    },
+    {
+      "zip": "8207",
       "managers": [],
       "accounts": 1
     }
   ],
   "stats": {
-    "total_zips": 3288,
-    "covered_zips": 455,
-    "potential_zips": 2833,
-    "sfdc_only_zips": 3,
-    "total_sfdc_accounts": 969
+    "total_zips": 3336,
+    "covered_zips": 689,
+    "potential_zips": 2647,
+    "sfdc_only_zips": 4,
+    "total_sfdc_accounts": 1957
   },
   "managerTerritoryMapping": {
     "Géraldine Larcher": "CMD_EMEA_CHAM_033",

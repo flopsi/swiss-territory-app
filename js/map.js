@@ -135,6 +135,9 @@ function renderNoPolygonMarkers() {
     var entry = state.zipDataMap[zip];
     if (!entry) return;
 
+    // Skip SFDC-only exception ZIPs — shown only in the warning table, not on the map
+    if (entry._anomaly) return;
+
     // Look up coordinates from fallback table
     var coords = FALLBACK_ZIP_COORDS[zip];
     if (!coords) return;
