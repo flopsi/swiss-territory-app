@@ -29,7 +29,7 @@
                style-src 'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com;
                img-src 'self' data: https://*.basemaps.cartocdn.com https://unpkg.com;
                font-src 'self' https://fonts.gstatic.com;
-               connect-src 'self' https://int.lindas.admin.ch https://*.basemaps.cartocdn.com;">
+               connect-src 'self' https://int.lindas.admin.ch https://*.basemaps.cartocdn.com https://api.perplexity.ai https://vitals.vercel-insights.com;">
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 
@@ -66,7 +66,12 @@
         </div>
       </div>
       <div class="header-right">
+        <span class="header-badge header-cost-badge" id="headerCostBadge" style="display:none;" title="Cumulative Sonar API spend">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style="vertical-align:-1px;margin-right:3px;"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5"/><path d="M8 4v8M6 5.5h3a1.5 1.5 0 010 3H6h3a1.5 1.5 0 010 3H6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span id="headerCostValue">$0.00</span>
+        </span>
         <span class="header-badge" id="lastUpdated"></span>
+        <button class="export-btn export-btn-sm" id="btnLogout" style="display:none;margin-left:8px;" title="Logout">Logout</button>
       </div>
     </header>
 
@@ -91,6 +96,26 @@
           <div class="stat-card">
             <span class="stat-value stat-val-dark" id="statAccounts">--</span>
             <span class="stat-label">SFDC ACCOUNTS</span>
+          </div>
+        </div>
+
+        <!-- AM Summary (identified companies per AM) -->
+        <div id="amSummarySection" class="sidebar-section" style="display:none;">
+          <div class="section-heading">IDENTIFIED PER AM</div>
+          <div class="section-body">
+            <table class="am-summary-table">
+              <thead><tr><th>Account Manager</th><th>Companies</th></tr></thead>
+              <tbody id="amSummaryBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ZIP / City Search -->
+        <div class="sidebar-section">
+          <div class="section-heading">SEARCH</div>
+          <div class="section-body">
+            <input type="text" id="zipSearch" class="filter-select" placeholder="Search ZIP code or city..." autocomplete="off">
+            <div id="searchFeedback" class="search-feedback" style="display:none;"></div>
           </div>
         </div>
 
@@ -152,6 +177,7 @@
             <div class="mini-stats">
               <span class="mini-stat"><span class="mini-val" id="statExceptions">0</span> Exceptions</span>
               <span class="mini-stat"><span class="mini-val" id="statExcluded">0</span> Excluded</span>
+              <span class="mini-stat"><span class="mini-val stat-val-identified" id="statIdentified">0</span> Identified</span>
             </div>
             <div class="export-buttons">
               <button class="export-btn" id="exportAnomalies" title="Export SFDC-only exception ZIPs">
@@ -162,6 +188,28 @@
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2M8 2v8M5 7l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 Excluded CSV
               </button>
+              <button class="export-btn" id="exportIdentified" title="Export identified ZIPs (changed from potential)">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2M8 2v8M5 7l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Identified CSV
+              </button>
+            </div>
+            <div class="export-buttons" style="margin-top:6px;">
+              <a class="export-btn" id="downloadIdentifiedCompanies" href="/api/identified-companies.csv" title="Download all identified companies (Sonar + ZEFIX) as CSV">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2M8 2v8M5 7l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Companies CSV
+              </a>
+            </div>
+            <!-- Sonar cost display -->
+            <div class="mini-stats" style="margin-top:8px;">
+              <span class="mini-stat">Sonar cost: <span class="mini-val" id="sonarCostDisplay">$0.00</span></span>
+            </div>
+            <!-- Leaderboard -->
+            <div id="leaderboardSection" style="display:none;margin-top:8px;">
+              <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-text-muted);margin-bottom:4px;">LEADERBOARD</div>
+              <table class="am-summary-table">
+                <thead><tr><th>#</th><th>User</th><th>Identified</th></tr></thead>
+                <tbody id="leaderboardBody"></tbody>
+              </table>
             </div>
           </div>
         </details>
@@ -187,6 +235,19 @@
             </div>
           </div>
         </details>
+
+        <!-- Excluded ZIP upload (backend mode only) -->
+        <div id="excludedUploadSection" style="display:none;" class="sidebar-section">
+          <div class="section-heading">UPLOAD EXCLUDED ZIPS</div>
+          <div class="section-body">
+            <label class="filter-label" for="fileExcluded">CSV or TXT file
+              <span class="filter-hint">(one ZIP per line, or comma-separated)</span>
+            </label>
+            <input type="file" id="fileExcluded" accept=".csv,.txt" class="upload-file-input">
+            <button class="export-btn upload-process-btn" id="btnUploadExcluded">Upload Excluded ZIPs</button>
+            <p class="upload-hint" id="excludedUploadStatus"></p>
+          </div>
+        </div>
       </aside>
 
       <!-- Map area -->
@@ -235,6 +296,10 @@
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.5"/><path d="M11 11l3.5 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
                 Find in ZEFIX
               </button>
+              <button class="tray-btn tray-btn-identified" id="btnMarkIdentified" title="Mark selected ZIPs as having new target accounts">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2l1.5 4H14l-3.5 2.5L12 13 8 10l-4 3 1.5-4.5L2 6h4.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Mark Identified
+              </button>
               <button class="tray-btn tray-btn-warn" id="btnMarkExcluded" title="Mark selected ZIPs as 'no valid accounts'">
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M5 5l6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
                 Mark Excluded
@@ -274,11 +339,24 @@
         </div>
         <div class="zefix-status" id="zefixStatus"></div>
         <div class="zefix-status" id="notionQueueStatus" style="display:none;"></div>
+        <div class="zefix-filter-bar zefix-filter-bar-presets">
+          <span class="filter-hint" style="white-space:nowrap;">Target scan:</span>
+          <button class="zefix-preset-btn" data-keywords="pharma,biotech,chemical,life science" title="Pharma/Biotech/Chemical">Pharma</button>
+          <button class="zefix-preset-btn" data-keywords="medtech,medical,diagnostic,device" title="MedTech/Devices">MedTech</button>
+          <button class="zefix-preset-btn" data-keywords="food,beverage,nutrition,agri" title="Food/Beverage/Agriculture">Food</button>
+          <button class="zefix-preset-btn" data-keywords="research,laboratory,analysis,testing,science" title="Research/Lab/Testing">Research</button>
+          <button class="zefix-preset-btn" data-keywords="environment,water,energy,clean" title="Environmental/Energy">Enviro</button>
+          <button class="zefix-preset-btn zefix-preset-clear" data-keywords="" title="Clear filter">Clear</button>
+        </div>
+        <div class="zefix-filter-bar">
+          <input type="text" id="zefixPurposeFilter" class="filter-select" placeholder="Filter by purpose or name keywords (comma-separated)" style="flex:1;">
+          <span id="zefixFilterCount" class="filter-hint" style="white-space:nowrap;"></span>
+        </div>
         <div class="zefix-table-wrap" id="zefixTableWrap">
           <table class="zefix-table" id="zefixTable">
             <thead>
               <tr>
-                <th style="width:32px;"><input type="checkbox" id="zefixSelectAll" checked title="Select / deselect all"></th>
+                <th style="width:32px;"><input type="checkbox" id="zefixSelectAll" title="Select / deselect all"></th>
                 <th>Legal Name</th>
                 <th>Purpose</th>
                 <th>ZIP</th>
@@ -289,6 +367,44 @@
             </thead>
             <tbody id="zefixBody"></tbody>
           </table>
+        </div>
+
+        <!-- Sonar-Pro Search Section -->
+        <div class="sonar-section" id="sonarSection">
+          <div class="sonar-bar">
+            <span id="sonarMemoryCount" class="filter-hint" style="display:none;"></span>
+            <button class="export-btn export-btn-sm sonar-remember-btn" id="btnRememberSelected" title="Save checked companies to session memory for Sonar search">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 2l1.5 4H14l-3.5 2.5L12 13 8 10l-4 3 1.5-4.5L2 6h4.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Remember Selected
+            </button>
+            <button class="export-btn export-btn-sm sonar-search-btn" id="btnSonarSearch" title="Run Sonar-Pro qualification on remembered companies">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 4l6 4 6-4M2 4v8a1 1 0 001 1h10a1 1 0 001-1V4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Search with Sonar-Pro
+            </button>
+            <button class="export-btn export-btn-sm" id="btnClearMemory" title="Clear session memory">Clear Memory</button>
+          </div>
+          <div class="zefix-status" id="sonarStatus" style="display:none;"></div>
+          <div id="sonarZipUpdates" class="zefix-status zefix-success" style="display:none;"></div>
+          <div id="sonarDownloadWrap" style="display:none;padding:4px 14px;">
+            <button class="export-btn export-btn-sm" id="btnDownloadSonar" title="Download Sonar results as CSV">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2M8 2v8M5 7l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Download Sonar Results
+            </button>
+          </div>
+          <div id="sonarResultsWrap" style="display:none;">
+            <table class="zefix-table sonar-results-table">
+              <thead>
+                <tr>
+                  <th>Company</th>
+                  <th>ZIP</th>
+                  <th>Locality</th>
+                  <th>Target?</th>
+                  <th>Reason</th>
+                </tr>
+              </thead>
+              <tbody id="sonarBody"></tbody>
+            </table>
+          </div>
         </div>
       </aside>
     </div>
@@ -310,8 +426,30 @@
     </footer>
   </div>
 
-  <script src="./data/data.js"></script>
+  <!-- Login overlay (visible by default; hidden by JS when auth succeeds or no backend) -->
+  <div id="loginOverlay" class="login-overlay" style="display:flex;">
+    <form id="loginForm" class="login-card">
+      <div class="login-logo">
+        <svg viewBox="0 0 32 32" width="48" height="48">
+          <rect x="2" y="2" width="28" height="28" rx="4" fill="#D32F2F"/>
+          <rect x="13" y="7" width="6" height="18" rx="1" fill="#fff"/>
+          <rect x="7" y="13" width="18" height="6" rx="1" fill="#fff"/>
+        </svg>
+      </div>
+      <h2 class="login-title">Swiss Territory Planner</h2>
+      <label class="filter-label" for="loginUser">Username</label>
+      <input type="text" id="loginUser" class="filter-select" required autocomplete="username">
+      <label class="filter-label" for="loginPass">Password</label>
+      <input type="password" id="loginPass" class="filter-select" required autocomplete="current-password">
+      <p id="loginError" class="upload-hint upload-error"></p>
+      <button type="submit" class="export-btn upload-process-btn" style="margin-top:8px;">Login</button>
+    </form>
+  </div>
+
+  <!-- Bundled data (static mode, loaded as globals before the app module) -->
   <script src="./data/ch-plz.js"></script>
+  <script src="./data/data.js"></script>
+
   <script type="module" src="./js/app.js"></script>
 </body>
 </html>

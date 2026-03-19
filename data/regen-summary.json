@@ -1,0 +1,135 @@
+{
+  "assignedCount": 79,
+  "ambiguousCases": [
+    {
+      "zip": "3012",
+      "managers": [
+        "Géraldine Larcher",
+        "Jonas Morger"
+      ],
+      "territories": [
+        "CMD_EMEA_CHAM_033",
+        "CMD_EMEA_CHAM_037"
+      ],
+      "chosen": "CMD_EMEA_CHAM_037"
+    },
+    {
+      "zip": "3018",
+      "managers": [
+        "Florian Marty",
+        "Jonas Morger"
+      ],
+      "territories": [
+        "CMD_EMEA_CHAM_030",
+        "CMD_EMEA_CHAM_037"
+      ],
+      "chosen": "CMD_EMEA_CHAM_037"
+    },
+    {
+      "zip": "4031",
+      "managers": [
+        "Jonas Morger",
+        "Michel Hofmeier"
+      ],
+      "territories": [
+        "CMD_EMEA_CHAM_037",
+        "CMD_EMEA_CHAM_035"
+      ],
+      "chosen": "CMD_EMEA_CHAM_037"
+    },
+    {
+      "zip": "4051",
+      "managers": [
+        "Géraldine Larcher",
+        "Michel Hofmeier"
+      ],
+      "territories": [
+        "CMD_EMEA_CHAM_033",
+        "CMD_EMEA_CHAM_035"
+      ],
+      "chosen": "CMD_EMEA_CHAM_035"
+    },
+    {
+      "zip": "4052",
+      "managers": [
+        "Florian Marty",
+        "Michel Hofmeier"
+      ],
+      "territories": [
+        "CMD_EMEA_CHAM_030",
+        "CMD_EMEA_CHAM_035"
+      ],
+      "chosen": "CMD_EMEA_CHAM_035"
+    },
+    {
+      "zip": "4056",
+      "managers": [
+        "Jonas Morger",
+        "Michel Hofmeier"
+      ],
+      "territories": [
+        "CMD_EMEA_CHAM_037",
+        "CMD_EMEA_CHAM_035"
+      ],
+      "chosen": "CMD_EMEA_CHAM_037"
+    },
+    {
+      "zip": "4058",
+      "managers": [
+        "Jonas Morger",
+        "Michel Hofmeier"
+      ],
+      "territories": [
+        "CMD_EMEA_CHAM_037",
+        "CMD_EMEA_CHAM_035"
+      ],
+      "chosen": "CMD_EMEA_CHAM_037"
+    },
+    {
+      "zip": "8092",
+      "managers": [
+        "Florian Marty",
+        "Jonas Morger"
+      ],
+      "territories": [
+        "CMD_EMEA_CHAM_030",
+        "CMD_EMEA_CHAM_037"
+      ],
+      "chosen": "CMD_EMEA_CHAM_030"
+    }
+  ],
+  "unresolvedZips": [
+    {
+      "zip": "2503",
+      "managers": [],
+      "accounts": 1
+    },
+    {
+      "zip": "6996",
+      "managers": [],
+      "accounts": 1
+    },
+    {
+      "zip": "8022",
+      "managers": [],
+      "accounts": 1
+    }
+  ],
+  "stats": {
+    "total_zips": 3288,
+    "covered_zips": 455,
+    "potential_zips": 2833,
+    "sfdc_only_zips": 3,
+    "total_sfdc_accounts": 969
+  },
+  "managerTerritoryMapping": {
+    "Géraldine Larcher": "CMD_EMEA_CHAM_033",
+    "Daniel Grenno": "CMD_EMEA_CHAM_031",
+    "Jonas Morger": "CMD_EMEA_CHAM_037",
+    "Markus Schilling": "CMD_EMEA_CHAM_034",
+    "Pascal Krapf": "CMD_EMEA_CHAM_036",
+    "Florian Marty": "CMD_EMEA_CHAM_030",
+    "Michel Hofmeier": "CMD_EMEA_CHAM_035",
+    "Alessandro Spadaro": "CMD_EMEA_CHAM_032"
+  }
+}

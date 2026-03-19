@@ -18,11 +18,21 @@ echo ""
 
 # 1. Required files
 echo "[1] Required files..."
-for f in index.html style.css data/data.js data/ch-plz.js .nojekyll .gitignore; do
+for f in index.html style.css .nojekyll .gitignore; do
   if [ -f "$f" ]; then pass "$f exists"; else fail "$f missing"; fi
 done
 for f in js/app.js js/state.js js/api.js js/map.js js/filters.js js/zefix.js js/exports.js js/uploads.js js/utils.js; do
   if [ -f "$f" ]; then pass "$f exists"; else fail "$f missing"; fi
+done
+
+# 1b. Bundled data files (required for static fallback mode)
+for f in data/data.js data/ch-plz.js data/ch-plz.topojson; do
+  if [ -f "$f" ]; then pass "$f exists"; else fail "$f missing (required for static fallback)"; fi
+done
+
+# 1c. Server files (expected for server deployment)
+for f in server.js package.json .env.example; do
+  if [ -f "$f" ]; then pass "$f exists"; else warn "$f missing (needed for server deployment)"; fi
 done
 
 # 2. Security checks
@@ -58,31 +68,27 @@ else
 fi
 
 if grep -rn 'localhost:8000\|__PORT_8000__' js/ index.html 2>/dev/null; then
-  fail "Backend URL references found"
+  fail "Legacy backend URL references found"
 else
-  pass "No backend URL references in frontend"
+  pass "No legacy backend URL references in frontend"
 fi
 
-# 4. No backend files committed
+# 4. Deployment safety
 echo ""
 echo "[4] Deployment safety..."
 
-if grep -q 'swiss_territory_state.db' .gitignore; then
-  pass ".gitignore excludes database"
-else
-  fail ".gitignore does not exclude database"
-fi
+for pattern in 'swiss_territory_state.db' 'api_server.py' '\.env' 'server-data'; do
+  if grep -q "$pattern" .gitignore; then
+    pass ".gitignore excludes $pattern"
+  else
+    fail ".gitignore does not exclude $pattern"
+  fi
+done
 
-if grep -q 'api_server.py' .gitignore; then
-  pass ".gitignore excludes api_server.py"
+if [ -d "server-data" ]; then
+  fail "server-data/ directory should not be committed"
 else
-  fail ".gitignore does not exclude api_server.py"
-fi
-
-if grep -q '\.env' .gitignore; then
-  pass ".gitignore excludes .env"
-else
-  fail ".gitignore does not exclude .env"
+  pass "server-data/ correctly absent from repo"
 fi
 
 # 5. JS module imports valid

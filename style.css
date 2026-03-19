@@ -95,6 +95,16 @@ html, body {
 
 .header-right {
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-cost-badge {
+  background: var(--color-identified-soft);
+  color: var(--color-identified);
+  font-weight: 600;
+  font-size: 12px;
 }
 
 /* ========== BODY LAYOUT ========== */
@@ -889,7 +899,7 @@ html, body {
 
 /* ========== ZEFIX PANEL ========== */
 .zefix-panel {
-  width: 520px;
+  width: 720px;
   flex-shrink: 0;
   background: var(--color-surface);
   border-left: 1px solid var(--color-border);
@@ -984,7 +994,7 @@ html, body {
 }
 
 .zefix-purpose-cell {
-  max-width: 260px;
+  max-width: 480px;
   font-size: 10px;
   color: var(--color-text-secondary);
   word-break: break-word;
@@ -1249,4 +1259,257 @@ html, body {
   height: 16px;
   cursor: pointer;
   accent-color: var(--color-accent);
+}
+
+/* ========== LOGIN OVERLAY ========== */
+.login-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(6px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-card {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.2);
+  padding: 32px 36px;
+  width: 340px;
+  max-width: 90vw;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.login-logo {
+  text-align: center;
+  margin-bottom: 4px;
+}
+
+.login-title {
+  font-size: 18px;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+/* ========== ZEFIX FILTER BAR ========== */
+.zefix-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* ========== ZEFIX PURPOSE PRESET BUTTONS ========== */
+.zefix-filter-bar-presets {
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.zefix-preset-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 100px;
+  background: var(--color-surface);
+  font-family: var(--font);
+  font-size: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.zefix-preset-btn:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.zefix-preset-btn.active {
+  background: var(--color-accent);
+  color: white;
+  border-color: var(--color-accent);
+}
+
+.zefix-preset-clear {
+  color: var(--color-text-muted);
+  border-style: dashed;
+}
+
+/* ========== ZIP SEARCH FEEDBACK ========== */
+.search-feedback {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  font-size: 11px;
+}
+
+.search-match-count {
+  color: var(--color-covered);
+  font-weight: 600;
+}
+
+.search-no-match {
+  color: var(--color-text-muted);
+}
+
+.search-anomaly-hint {
+  color: var(--color-anomaly);
+  font-size: 10px;
+}
+
+/* ========== IDENTIFIED (NEW TARGETS) COLOR ========== */
+:root {
+  --color-identified: #d946ef;
+  --color-identified-soft: #fae8ff;
+}
+
+.tt-status.identified {
+  background: var(--color-identified-soft);
+  color: var(--color-identified);
+}
+
+.tray-chip-identified {
+  border-color: var(--color-identified);
+}
+
+.stat-val-identified {
+  color: var(--color-identified);
+}
+
+.tray-btn-identified {
+  border-color: var(--color-identified);
+  color: var(--color-identified);
+}
+
+.tray-btn-identified:hover {
+  background: var(--color-identified-soft);
+  border-color: var(--color-identified);
+  color: var(--color-identified);
+}
+
+/* Search-highlighted anomaly row */
+.anomaly-search-row td {
+  background: var(--color-potential-soft);
+}
+
+.anomaly-search-note {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* ========== AM SUMMARY TABLE ========== */
+.am-summary-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.am-summary-table th {
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+  padding: 4px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.am-summary-table td {
+  padding: 3px 8px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.am-summary-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* ========== SONAR-PRO SECTION ========== */
+.sonar-section {
+  border-top: 2px solid var(--color-identified);
+  flex-shrink: 0;
+}
+
+.sonar-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--color-border);
+  flex-wrap: wrap;
+}
+
+.sonar-search-btn {
+  background: var(--color-identified) !important;
+  color: white !important;
+  border-color: var(--color-identified) !important;
+}
+
+.sonar-search-btn:hover:not(:disabled) {
+  background: #c026d3 !important;
+  border-color: #c026d3 !important;
+}
+
+.sonar-search-btn:disabled {
+  opacity: 0.5;
+}
+
+.sonar-remember-btn {
+  border-color: var(--color-identified) !important;
+  color: var(--color-identified) !important;
+}
+
+.sonar-remember-btn:hover {
+  background: var(--color-identified-soft) !important;
+}
+
+.sonar-results-table {
+  margin: 0;
+}
+
+#sonarResultsWrap {
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 0 0 6px;
+}
+
+.sonar-row-target td {
+  background: rgba(217, 70, 239, 0.06);
+}
+
+.sonar-row-nontarget td {
+  background: rgba(0, 0, 0, 0.01);
+}
+
+.sonar-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 100px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin-right: 4px;
+}
+
+.sonar-badge-yes {
+  background: var(--color-identified-soft);
+  color: var(--color-identified);
+}
+
+.sonar-badge-no {
+  background: var(--color-bg);
+  color: var(--color-text-muted);
 }

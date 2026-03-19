@@ -7,7 +7,7 @@ import {
   hasActiveFilters, isFiltered, getExceptionInfo, coverageColors,
 } from "./state.js";
 import { escapeHTML } from "./utils.js";
-import { saveExcluded } from "./api.js";
+import { saveExcluded, saveIdentified } from "./api.js";
 
 // ==================== Map Setup ====================
 export function setupMap() {
@@ -227,6 +227,7 @@ function styleFeature(feature) {
   var entry = state.zipDataMap[zip];
   var filtered = isFiltered(entry);
   var isSelected = state.selectedZips[zip];
+  var isSearchMatch = state.searchMatchedZips[zip];
   var filtersActive = hasActiveFilters();
 
   if (isSelected) {
@@ -236,6 +237,16 @@ function styleFeature(feature) {
       weight: 1.5,
       color: "#1d4ed8",
       opacity: 0.9,
+    };
+  }
+
+  if (isSearchMatch) {
+    return {
+      fillColor: "#f59e0b",
+      fillOpacity: 0.65,
+      weight: 2.5,
+      color: "#d97706",
+      opacity: 1,
     };
   }
 
@@ -311,8 +322,8 @@ export function buildTooltip(zip, entry) {
   }
 
   var eff = getEffectiveStatus(entry);
-  var statusLabels = { covered: "Covered", potential: "Potential", exception: "Exception (SFDC only)", excluded: "Excluded" };
-  var statusClasses = { covered: "covered", potential: "potential", exception: "anomaly", excluded: "excluded" };
+  var statusLabels = { covered: "Covered", potential: "Potential", exception: "Exception (SFDC only)", excluded: "Excluded", identified: "Identified (new targets)" };
+  var statusClasses = { covered: "covered", potential: "potential", exception: "anomaly", excluded: "excluded", identified: "identified" };
 
   var html =
     '<div class="tt-zip">' + zip + (entry.official_city ? " &mdash; " + escapeHTML(entry.official_city) : "") + '</div>';
@@ -323,7 +334,7 @@ export function buildTooltip(zip, entry) {
 
   html +=
     '<div class="tt-row"><span class="tt-label">Manager</span><span class="tt-val">' + escapeHTML(entry.account_manager || (entry.sfdc_managers || []).join(", ")) + '</span></div>' +
-    '<div class="tt-row"><span class="tt-label">Territory</span><span class="tt-val">' + escapeHTML((entry.territory_id || "").replace("CMD_EMEA_CH_AM_", "AM ")) + '</span></div>' +
+    '<div class="tt-row"><span class="tt-label">Territory</span><span class="tt-val">' + escapeHTML((entry.territory_id || "").replace("CMD_EMEA_CH_AM_", "AM ").replace("CMD_EMEA_CHAM_", "AM ")) + '</span></div>' +
     '<div class="tt-row"><span class="tt-label">Status</span><span class="tt-status ' + (statusClasses[eff] || "") + '">' + (statusLabels[eff] || eff) + '</span></div>' +
     '<div class="tt-row"><span class="tt-label">SFDC Accts</span><span class="tt-val">' + (entry.sfdc_account_count || 0) + '</span></div>';
 
@@ -429,6 +440,29 @@ export function refreshStyles() {
   renderAnomalyMarkers();
 }
 
+// ==================== Mark as Identified ====================
+export function markSelectedIdentified() {
+  var zips = Object.keys(state.selectedZips);
+  if (zips.length === 0) return;
+
+  var undoEntry = { type: "identify", zips: zips, previous: {} };
+  zips.forEach(function (zip) {
+    undoEntry.previous[zip] = state.identifiedZips[zip] || null;
+  });
+  state.undoStack.push(undoEntry);
+
+  var now = new Date().toISOString();
+  zips.forEach(function (zip) {
+    state.identifiedZips[zip] = now;
+  });
+  saveIdentified(state.identifiedZips);
+
+  state.selectedZips = {};
+  refreshStyles();
+  updateSelectionTray();
+  if (_onExcludeCallback) _onExcludeCallback();
+}
+
 // ==================== Mark as Excluded ====================
 export function markSelectedExcluded() {
   var zips = Object.keys(state.selectedZips);
@@ -466,6 +500,19 @@ export function undoLastAction() {
       }
     });
     saveExcluded(state.excludedZips);
+    refreshStyles();
+    if (_onExcludeCallback) _onExcludeCallback();
+  }
+
+  if (entry.type === "identify") {
+    entry.zips.forEach(function (zip) {
+      if (entry.previous[zip]) {
+        state.identifiedZips[zip] = entry.previous[zip];
+      } else {
+        delete state.identifiedZips[zip];
+      }
+    });
+    saveIdentified(state.identifiedZips);
     refreshStyles();
     if (_onExcludeCallback) _onExcludeCallback();
   }
