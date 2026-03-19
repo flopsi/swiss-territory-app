@@ -25,7 +25,7 @@
 <!-- Security headers (meta-tag equivalents for GitHub Pages static hosting) -->
 <meta http-equiv="Content-Security-Policy"
       content="default-src 'self';
-               script-src 'self' https://unpkg.com;
+               script-src 'self' https://unpkg.com https://va.vercel-scripts.com /_vercel/speed-insights/;
                style-src 'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com;
                img-src 'self' data: https://*.basemaps.cartocdn.com https://unpkg.com;
                font-src 'self' https://fonts.gstatic.com;
@@ -49,6 +49,9 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
 <link rel="stylesheet" href="./style.css">
+
+<!-- Vercel Speed Insights -->
+<script defer src="/_vercel/speed-insights/script.js"></script>
 </head>
 <body>
   <div class="app-shell">
