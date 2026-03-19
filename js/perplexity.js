@@ -18,6 +18,9 @@ import { apiRequest, isBackendMode, saveIdentified, saveExcluded } from "./api.j
 import { getSessionMemoryCompanies, clearSessionMemory } from "./zefix.js";
 import { refreshStyles, updateSelectionTray } from "./map.js";
 
+// ==================== Sonar Results State ====================
+var lastSonarResults = [];
+
 // ==================== Sonar Search ====================
 
 /**
@@ -80,7 +83,9 @@ export function runSonarSearch() {
         "zefix-success"
       );
 
+      lastSonarResults = data.results;
       renderSonarResults(data.results);
+      showSonarDownload(true);
       applyAutomaticZipUpdates(data.results);
       refreshCostDisplay();
       refreshLeaderboard();
@@ -130,6 +135,41 @@ function renderSonarResults(results) {
       "<td>" + escapeHTML(reason) + "</td>";
     tbody.appendChild(tr);
   });
+}
+
+function showSonarDownload(visible) {
+  var wrap = document.getElementById("sonarDownloadWrap");
+  if (wrap) wrap.style.display = visible ? "block" : "none";
+}
+
+export function downloadSonarCSV() {
+  if (lastSonarResults.length === 0) return;
+  var rows = [["Company", "ZIP", "Locality", "Target", "Reason", "Cached"]];
+  lastSonarResults.forEach(function (r) {
+    var isTarget = r.sonar && r.sonar.is_target;
+    var reason = r.sonar ? r.sonar.reason : "";
+    rows.push([
+      r.name || r.legalName || "",
+      r.zip || r.postalCode || "",
+      r.locality || "",
+      isTarget ? "Yes" : "No",
+      reason,
+      r.cached ? "Yes" : "No",
+    ]);
+  });
+  var csv = rows.map(function (row) {
+    return row.map(function (cell) {
+      var s = String(cell).replace(/"/g, '""');
+      return '"' + s + '"';
+    }).join(",");
+  }).join("\n");
+  var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url;
+  a.download = "sonar-results.csv";
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ==================== Automatic ZIP Status Updates ====================
@@ -203,9 +243,18 @@ export function refreshCostDisplay() {
   if (!isBackendMode()) return;
   apiRequest("/api/sonar-costs", { method: "GET" })
     .then(function (data) {
+      var cost = data.total_cost || 0;
+      var queries = data.queries || 0;
       var el = document.getElementById("sonarCostDisplay");
       if (el) {
-        el.textContent = "$" + (data.total_cost || 0).toFixed(4) + " (" + (data.queries || 0) + " lookups)";
+        el.textContent = "$" + cost.toFixed(4) + " (" + queries + " lookups)";
+      }
+      // Update header cost badge
+      var badge = document.getElementById("headerCostBadge");
+      var val = document.getElementById("headerCostValue");
+      if (badge && val) {
+        val.textContent = "$" + cost.toFixed(2) + " (" + queries + ")";
+        badge.style.display = (cost > 0 || queries > 0) ? "inline-flex" : "none";
       }
     })
     .catch(function () { /* silent */ });

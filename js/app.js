@@ -23,7 +23,7 @@ import {
 import { queryZefix, updateZefixSelectionCount, exportZefixResults, queueSelectedZefixForNotion, saveSelectedToSessionMemory, clearSessionMemory } from "./zefix.js";
 import { exportAnomalies, exportExcludedZips, exportIdentifiedZips, exportSelectedZips } from "./exports.js";
 import { setupUploadEvents, showResetDataButton } from "./uploads.js";
-import { runSonarSearch, refreshCostDisplay, refreshAMSummary, refreshLeaderboard, updateMemoryCount } from "./perplexity.js";
+import { runSonarSearch, refreshCostDisplay, refreshAMSummary, refreshLeaderboard, updateMemoryCount, downloadSonarCSV } from "./perplexity.js";
 import { initAnalytics, trackEvent } from "./analytics.js";
 
 // ==================== Login Screen ====================
@@ -490,6 +490,14 @@ function setupEventListeners() {
       clearSessionMemory();
       updateMemoryCount();
       showNotionQueueStatusTemp("Session memory cleared.", "zefix-loading");
+    });
+  }
+
+  var btnDownloadSonar = document.getElementById("btnDownloadSonar");
+  if (btnDownloadSonar) {
+    btnDownloadSonar.addEventListener("click", function () {
+      trackEvent("sonar_download_csv");
+      downloadSonarCSV();
     });
   }
 

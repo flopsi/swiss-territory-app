@@ -66,6 +66,10 @@
         </div>
       </div>
       <div class="header-right">
+        <span class="header-badge header-cost-badge" id="headerCostBadge" style="display:none;" title="Cumulative Sonar API spend">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style="vertical-align:-1px;margin-right:3px;"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5"/><path d="M8 4v8M6 5.5h3a1.5 1.5 0 010 3H6h3a1.5 1.5 0 010 3H6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span id="headerCostValue">$0.00</span>
+        </span>
         <span class="header-badge" id="lastUpdated"></span>
         <button class="export-btn export-btn-sm" id="btnLogout" style="display:none;margin-left:8px;" title="Logout">Logout</button>
       </div>
@@ -320,10 +324,6 @@
           <h3 class="section-heading" style="margin-bottom:0;">ZEFIX Results</h3>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
             <span id="zefixSelCount" style="font-size:11px;color:#64748b;"></span>
-            <button class="export-btn export-btn-sm sonar-remember-btn" id="btnRememberSelected" title="Save checked companies to session memory for Sonar search">
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 2l1.5 4H14l-3.5 2.5L12 13 8 10l-4 3 1.5-4.5L2 6h4.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              Remember Selected
-            </button>
             <button class="export-btn export-btn-sm" id="queueNotionBatch" title="Store checked ZEFIX companies for manual Notion push">
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3M2 13h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
               Queue for Notion
@@ -373,6 +373,10 @@
         <div class="sonar-section" id="sonarSection">
           <div class="sonar-bar">
             <span id="sonarMemoryCount" class="filter-hint" style="display:none;"></span>
+            <button class="export-btn export-btn-sm sonar-remember-btn" id="btnRememberSelected" title="Save checked companies to session memory for Sonar search">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 2l1.5 4H14l-3.5 2.5L12 13 8 10l-4 3 1.5-4.5L2 6h4.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Remember Selected
+            </button>
             <button class="export-btn export-btn-sm sonar-search-btn" id="btnSonarSearch" title="Run Sonar-Pro qualification on remembered companies">
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 4l6 4 6-4M2 4v8a1 1 0 001 1h10a1 1 0 001-1V4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
               Search with Sonar-Pro
@@ -381,6 +385,12 @@
           </div>
           <div class="zefix-status" id="sonarStatus" style="display:none;"></div>
           <div id="sonarZipUpdates" class="zefix-status zefix-success" style="display:none;"></div>
+          <div id="sonarDownloadWrap" style="display:none;padding:4px 14px;">
+            <button class="export-btn export-btn-sm" id="btnDownloadSonar" title="Download Sonar results as CSV">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2M8 2v8M5 7l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Download Sonar Results
+            </button>
+          </div>
           <div id="sonarResultsWrap" style="display:none;">
             <table class="zefix-table sonar-results-table">
               <thead>

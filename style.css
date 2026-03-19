@@ -95,6 +95,16 @@ html, body {
 
 .header-right {
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-cost-badge {
+  background: var(--color-identified-soft);
+  color: var(--color-identified);
+  font-weight: 600;
+  font-size: 12px;
 }
 
 /* ========== BODY LAYOUT ========== */
