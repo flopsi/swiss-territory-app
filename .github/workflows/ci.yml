@@ -133,6 +133,19 @@ jobs:
           fi
           echo "File size check complete."
 
-      # ── 8. Run validate.sh (aggregated check) ──────────────────
+      # ── 8. Storage abstraction checks ────────────────────────
+      - name: Verify storage.js Blob abstraction
+        run: |
+          test -f storage.js || { echo "::error::storage.js missing"; exit 1; }
+          grep -q 'BLOB_READ_WRITE_TOKEN' storage.js || { echo "::error::storage.js missing BLOB_READ_WRITE_TOKEN check"; exit 1; }
+          grep -q '@vercel/blob' storage.js || { echo "::error::storage.js does not use @vercel/blob SDK"; exit 1; }
+          if grep -q 'IS_VERCEL' storage.js; then
+            echo "::error::storage.js still has IS_VERCEL guard — Blob must be gated on BLOB_READ_WRITE_TOKEN only"
+            exit 1
+          fi
+          grep -q '"@vercel/blob"' package.json || { echo "::error::package.json missing @vercel/blob dependency"; exit 1; }
+          echo "Storage abstraction checks passed."
+
+      # ── 9. Run validate.sh (aggregated check) ──────────────────
       - name: Run validation script
         run: bash validate.sh

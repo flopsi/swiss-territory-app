@@ -117,9 +117,43 @@ if [ "$IMPORT_ERRORS" -eq 0 ]; then
   pass "All JS imports resolve correctly"
 fi
 
-# 6. GitHub Actions workflows
+# 6. Storage abstraction checks
 echo ""
-echo "[6] CI/CD workflows..."
+echo "[6] Storage abstraction (Vercel Blob)..."
+
+if [ -f "storage.js" ]; then
+  pass "storage.js exists"
+else
+  fail "storage.js missing — required for Blob persistence layer"
+fi
+
+if grep -q "BLOB_READ_WRITE_TOKEN" storage.js; then
+  pass "storage.js references BLOB_READ_WRITE_TOKEN"
+else
+  fail "storage.js missing BLOB_READ_WRITE_TOKEN check"
+fi
+
+if grep -q "@vercel/blob" storage.js; then
+  pass "storage.js uses @vercel/blob SDK"
+else
+  fail "storage.js does not use @vercel/blob SDK"
+fi
+
+if grep -q "IS_VERCEL" storage.js; then
+  fail "storage.js still has IS_VERCEL guard — Blob should be gated on BLOB_READ_WRITE_TOKEN only"
+else
+  pass "storage.js: no IS_VERCEL guard (Blob gated on token only)"
+fi
+
+if grep -q '"@vercel/blob"' package.json; then
+  pass "package.json declares @vercel/blob dependency"
+else
+  fail "package.json missing @vercel/blob dependency"
+fi
+
+# 7. GitHub Actions workflows
+echo ""
+echo "[7] CI/CD workflows..."
 
 if [ -f .github/workflows/ci.yml ]; then
   pass "CI workflow exists"

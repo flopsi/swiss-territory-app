@@ -1,16 +1,27 @@
 /**
  * storage.js — Durable persistence layer.
  *
- * On Vercel: uses @vercel/blob (requires BLOB_READ_WRITE_TOKEN env var).
- * Locally:   uses the filesystem under server-data/.
+ * When BLOB_READ_WRITE_TOKEN is set: uses @vercel/blob for all persistence
+ *   (works on Vercel deployments and locally when the developer sets the token).
+ * Otherwise: falls back to the local filesystem under server-data/.
  *
  * Exposes simple get/put/del helpers that the server endpoints call.
+ * All mutable runtime data classes are routed through this module:
+ *   - excluded            : excluded ZIP codes map
+ *   - identified          : identified ZIP codes map
+ *   - dataset             : uploaded SFDC dataset
+ *   - datasetMeta         : dataset upload timestamp
+ *   - identifiedCompanies : Sonar/ZEFIX-qualified companies list
+ *   - sonarCache          : Perplexity Sonar result cache
+ *   - sonarCosts          : Sonar API cost tracking
+ *   - leaderboard         : per-user identification counts
+ *
+ * Static bundled source files (data/data.js, data/ch-plz.topojson,
+ * data/ch-plz.js) are never written at runtime and remain as bundled assets.
  */
 
 const path = require("path");
 const fs = require("fs");
-
-const IS_VERCEL = !!process.env.VERCEL;
 
 // Blob store paths — stored as JSON files in the Vercel Blob store
 const BLOB_PREFIX = "swiss-territory/";
@@ -133,18 +144,20 @@ function localDel(filePath) {
 // --------------- Public API ---------------
 
 /**
- * Check whether blob storage is configured (has required env var).
+ * Check whether Blob storage is configured.
+ * Blob is used whenever BLOB_READ_WRITE_TOKEN is present — on Vercel
+ * deployments (where it is injected automatically from the linked Blob store)
+ * and locally when the developer sets the token in their .env file.
  */
 function isBlobConfigured() {
-  return IS_VERCEL && !!process.env.BLOB_READ_WRITE_TOKEN;
+  return !!process.env.BLOB_READ_WRITE_TOKEN;
 }
 
 /**
  * Read excluded ZIPs map. Returns {} if not found.
  */
 async function getExcluded() {
-  if (IS_VERCEL) {
-    if (!isBlobConfigured()) return {};
+  if (isBlobConfigured()) {
     return await blobGet(BLOB_PATHS.excluded, {});
   }
   return localGet(LOCAL_PATHS.excluded, {});
@@ -154,10 +167,7 @@ async function getExcluded() {
  * Write excluded ZIPs map.
  */
 async function putExcluded(data) {
-  if (IS_VERCEL) {
-    if (!isBlobConfigured()) {
-      throw new Error("BLOB_READ_WRITE_TOKEN is not set. Cannot persist excluded ZIPs.");
-    }
+  if (isBlobConfigured()) {
     return await blobPut(BLOB_PATHS.excluded, data);
   }
   localPut(LOCAL_PATHS.excluded, data);
@@ -167,8 +177,7 @@ async function putExcluded(data) {
  * Read identified ZIPs map. Returns {} if not found.
  */
 async function getIdentified() {
-  if (IS_VERCEL) {
-    if (!isBlobConfigured()) return {};
+  if (isBlobConfigured()) {
     return await blobGet(BLOB_PATHS.identified, {});
   }
   return localGet(LOCAL_PATHS.identified, {});
@@ -178,10 +187,7 @@ async function getIdentified() {
  * Write identified ZIPs map.
  */
 async function putIdentified(data) {
-  if (IS_VERCEL) {
-    if (!isBlobConfigured()) {
-      throw new Error("BLOB_READ_WRITE_TOKEN is not set. Cannot persist identified ZIPs.");
-    }
+  if (isBlobConfigured()) {
     return await blobPut(BLOB_PATHS.identified, data);
   }
   localPut(LOCAL_PATHS.identified, data);
@@ -191,8 +197,7 @@ async function putIdentified(data) {
  * Read uploaded dataset. Returns null if not found.
  */
 async function getDataset() {
-  if (IS_VERCEL) {
-    if (!isBlobConfigured()) return null;
+  if (isBlobConfigured()) {
     return await blobGet(BLOB_PATHS.dataset, null);
   }
   return localGet(LOCAL_PATHS.dataset, null);
@@ -202,10 +207,7 @@ async function getDataset() {
  * Write uploaded dataset.
  */
 async function putDataset(data) {
-  if (IS_VERCEL) {
-    if (!isBlobConfigured()) {
-      throw new Error("BLOB_READ_WRITE_TOKEN is not set. Cannot persist dataset.");
-    }
+  if (isBlobConfigured()) {
     return await blobPut(BLOB_PATHS.dataset, data);
   }
   localPut(LOCAL_PATHS.dataset, data);
@@ -215,8 +217,7 @@ async function putDataset(data) {
  * Read dataset metadata (uploaded_at). Returns { uploaded_at: null } if not found.
  */
 async function getDatasetMeta() {
-  if (IS_VERCEL) {
-    if (!isBlobConfigured()) return { uploaded_at: null };
+  if (isBlobConfigured()) {
     return await blobGet(BLOB_PATHS.datasetMeta, { uploaded_at: null });
   }
   return localGet(LOCAL_PATHS.datasetMeta, { uploaded_at: null });
@@ -226,10 +227,7 @@ async function getDatasetMeta() {
  * Write dataset metadata.
  */
 async function putDatasetMeta(data) {
-  if (IS_VERCEL) {
-    if (!isBlobConfigured()) {
-      throw new Error("BLOB_READ_WRITE_TOKEN is not set. Cannot persist dataset metadata.");
-    }
+  if (isBlobConfigured()) {
     return await blobPut(BLOB_PATHS.datasetMeta, data);
   }
   localPut(LOCAL_PATHS.datasetMeta, data);
@@ -238,16 +236,14 @@ async function putDatasetMeta(data) {
 // --------------- Identified Companies (persisted CSV-backing store) ---------------
 
 async function getIdentifiedCompanies() {
-  if (IS_VERCEL) {
-    if (!isBlobConfigured()) return [];
+  if (isBlobConfigured()) {
     return await blobGet(BLOB_PATHS.identifiedCompanies, []);
   }
   return localGet(LOCAL_PATHS.identifiedCompanies, []);
 }
 
 async function putIdentifiedCompanies(data) {
-  if (IS_VERCEL) {
-    if (!isBlobConfigured()) throw new Error("BLOB_READ_WRITE_TOKEN is not set.");
+  if (isBlobConfigured()) {
     return await blobPut(BLOB_PATHS.identifiedCompanies, data);
   }
   localPut(LOCAL_PATHS.identifiedCompanies, data);
@@ -256,16 +252,14 @@ async function putIdentifiedCompanies(data) {
 // --------------- Sonar Lookup Cache (prevents repeated lookups) ---------------
 
 async function getSonarCache() {
-  if (IS_VERCEL) {
-    if (!isBlobConfigured()) return {};
+  if (isBlobConfigured()) {
     return await blobGet(BLOB_PATHS.sonarCache, {});
   }
   return localGet(LOCAL_PATHS.sonarCache, {});
 }
 
 async function putSonarCache(data) {
-  if (IS_VERCEL) {
-    if (!isBlobConfigured()) throw new Error("BLOB_READ_WRITE_TOKEN is not set.");
+  if (isBlobConfigured()) {
     return await blobPut(BLOB_PATHS.sonarCache, data);
   }
   localPut(LOCAL_PATHS.sonarCache, data);
@@ -274,16 +268,14 @@ async function putSonarCache(data) {
 // --------------- Sonar Cost Tracking ---------------
 
 async function getSonarCosts() {
-  if (IS_VERCEL) {
-    if (!isBlobConfigured()) return { total_cost: 0, queries: 0 };
+  if (isBlobConfigured()) {
     return await blobGet(BLOB_PATHS.sonarCosts, { total_cost: 0, queries: 0 });
   }
   return localGet(LOCAL_PATHS.sonarCosts, { total_cost: 0, queries: 0 });
 }
 
 async function putSonarCosts(data) {
-  if (IS_VERCEL) {
-    if (!isBlobConfigured()) throw new Error("BLOB_READ_WRITE_TOKEN is not set.");
+  if (isBlobConfigured()) {
     return await blobPut(BLOB_PATHS.sonarCosts, data);
   }
   localPut(LOCAL_PATHS.sonarCosts, data);
@@ -292,27 +284,24 @@ async function putSonarCosts(data) {
 // --------------- Leaderboard ---------------
 
 async function getLeaderboard() {
-  if (IS_VERCEL) {
-    if (!isBlobConfigured()) return {};
+  if (isBlobConfigured()) {
     return await blobGet(BLOB_PATHS.leaderboard, {});
   }
   return localGet(LOCAL_PATHS.leaderboard, {});
 }
 
 async function putLeaderboard(data) {
-  if (IS_VERCEL) {
-    if (!isBlobConfigured()) throw new Error("BLOB_READ_WRITE_TOKEN is not set.");
+  if (isBlobConfigured()) {
     return await blobPut(BLOB_PATHS.leaderboard, data);
   }
   localPut(LOCAL_PATHS.leaderboard, data);
 }
 
 /**
- * Delete all persisted data (excluded + dataset + meta).
+ * Delete all persisted runtime data from both storage backends.
  */
 async function clearAll() {
-  if (IS_VERCEL) {
-    if (!isBlobConfigured()) return;
+  if (isBlobConfigured()) {
     await Promise.all([
       blobDel(BLOB_PATHS.excluded),
       blobDel(BLOB_PATHS.identified),
