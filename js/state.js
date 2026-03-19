@@ -27,6 +27,7 @@ export var state = {
   excludedZips: {},
   identifiedZips: {},       // ZIPs where new target accounts were found via ZEFIX
   geoLayer: null,
+  markerLayer: null,
   territoryBorderLayer: null,
   map: null,
   zipDataMap: {},

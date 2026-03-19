@@ -9,6 +9,40 @@ import {
 import { escapeHTML } from "./utils.js";
 import { saveExcluded, saveIdentified } from "./api.js";
 
+// Approximate coordinates for ZIPs that have no TopoJSON polygon
+// (sub-delivery areas, PO boxes, business districts). Derived from
+// centroids of nearest postal areas so markers appear in the right region.
+export var FALLBACK_ZIP_COORDS = {
+  "1001": [46.5403, 6.6802], "1002": [46.5195, 6.6306], "1014": [46.5195, 6.5763],
+  "1211": [46.1768, 6.1182], "1401": [46.7952, 6.6911], "1701": [46.8054, 7.1651],
+  "1705": [46.8054, 7.1651], "1708": [46.8054, 7.1651], "1951": [46.2281, 7.3564],
+  "2001": [46.9977, 6.9305], "2002": [46.9977, 6.9305], "2003": [46.9977, 6.9305],
+  "2007": [46.9977, 6.9305], "2009": [46.9977, 6.9305], "2139": [46.9605, 6.7646],
+  "2301": [47.1165, 6.875],  "2304": [47.1165, 6.875],  "2500": [47.1484, 7.2449],
+  "2501": [47.1484, 7.2449], "3001": [46.9752, 7.4491], "3003": [46.9752, 7.4491],
+  "3100": [46.8794, 7.5633], "3401": [47.0544, 7.6133], "3515": [46.9725, 7.6335],
+  "3690": [46.8181, 7.6417], "3990": [46.38, 8.0708],   "4002": [47.5548, 7.5886],
+  "4005": [47.5548, 7.5886], "4012": [47.5548, 7.5886], "4019": [47.5619, 7.5759],
+  "4050": [47.5551, 7.586],  "4070": [47.5283, 7.5929], "4075": [47.5283, 7.5929],
+  "4502": [47.2067, 7.5289], "4509": [47.2067, 7.5289], "4550": [47.1924, 7.5892],
+  "4901": [47.2137, 7.7953], "5001": [47.3899, 8.0496], "5194": [47.4545, 8.171],
+  "5201": [47.4856, 8.2079], "5232": [47.5139, 8.2321], "5401": [47.4724, 8.2941],
+  "6000": [47.0506, 8.296],  "6002": [47.0506, 8.296],  "6021": [47.13, 8.0547],
+  "6281": [47.1482, 8.2862], "6301": [47.1418, 8.5318], "6302": [47.1418, 8.5318],
+  "6341": [47.2272, 8.5734], "6342": [47.1538, 8.4408], "6501": [46.1936, 9.0408],
+  "6601": [46.1908, 8.7827], "6671": [46.2366, 8.7669], "6901": [46.0129, 8.9436],
+  "6910": [45.9799, 8.9434], "7001": [46.8451, 9.5299], "7007": [46.8451, 9.5299],
+  "8000": [47.3729, 8.5429], "8010": [47.3553, 8.5608], "8021": [47.369, 8.5632],
+  "8024": [47.369, 8.5632],  "8027": [47.369, 8.5632],  "8058": [47.4006, 8.5421],
+  "8090": [47.3989, 8.4863], "8091": [47.3989, 8.4863], "8092": [47.3989, 8.4863],
+  "8093": [47.3989, 8.4863], "8160": [47.4911, 8.4297], "8201": [47.7151, 8.6309],
+  "8205": [47.7229, 8.6744], "8369": [47.4463, 8.9162], "8401": [47.4875, 8.7314],
+  "8411": [47.5361, 8.6877], "8501": [47.534, 8.879],   "8510": [47.538, 8.9967],
+  "8571": [47.5723, 9.1182], "8823": [47.1935, 8.6401], "9001": [47.4252, 9.3687],
+  "9007": [47.4438, 9.3949], "9101": [47.3832, 9.2839], "9201": [47.4189, 9.2483],
+  "9303": [47.4681, 9.3419], "9471": [47.1792, 9.4444],
+};
+
 // ==================== Map Setup ====================
 export function setupMap() {
   state.map = L.map("map", {
@@ -69,6 +103,9 @@ export function renderGeoLayer() {
     onEachFeature: onEachFeature,
   }).addTo(state.map);
 
+  // Render circle markers for ZIPs that have data but no polygon
+  renderNoPolygonMarkers();
+
   if (state.territoryBorderLayer) {
     state.territoryBorderLayer.bringToFront();
   }
@@ -80,89 +117,66 @@ export function renderGeoLayer() {
   renderAnomalyTableIfReady();
 }
 
-// ==================== Anomaly Markers (for ZIPs without polygons) ====================
-function getPolygonCentroid(feature) {
-  // Compute simple centroid from GeoJSON coordinates
-  var coords;
-  if (feature.geometry.type === "Polygon") {
-    coords = feature.geometry.coordinates[0];
-  } else if (feature.geometry.type === "MultiPolygon") {
-    coords = feature.geometry.coordinates[0][0];
-  } else {
-    return null;
+// ==================== Markers for ZIPs Without Polygons ====================
+// Renders circle markers for ZIP codes that exist in the dataset but have
+// no TopoJSON polygon (e.g. 8093 ETH Zurich, sub-delivery areas, PO boxes).
+function renderNoPolygonMarkers() {
+  if (state.markerLayer) {
+    state.map.removeLayer(state.markerLayer);
   }
-  var lat = 0, lng = 0, n = coords.length;
-  for (var i = 0; i < n; i++) {
-    lng += coords[i][0];
-    lat += coords[i][1];
-  }
-  return [lat / n, lng / n];
-}
+  state.markerLayer = L.layerGroup();
 
-function findNearestPolygonCenter(zip) {
-  // Try progressively shorter prefixes to find a nearby polygon
-  for (var len = 3; len >= 2; len--) {
-    var prefix = zip.substring(0, len);
-    var keys = Object.keys(state.topoFeaturesById);
-    for (var i = 0; i < keys.length; i++) {
-      if (keys[i].substring(0, len) === prefix) {
-        var center = getPolygonCentroid(state.topoFeaturesById[keys[i]]);
-        if (center) return center;
-      }
-    }
-  }
-  return null;
-}
-
-export function renderAnomalyMarkers() {
-  if (state.anomalyMarkerLayer) {
-    state.map.removeLayer(state.anomalyMarkerLayer);
-  }
-
-  var data = getActiveData();
-  if (!data || !data.sfdc_only) return;
-
-  var markers = [];
   var filtersActive = hasActiveFilters();
 
-  data.sfdc_only.forEach(function (row) {
-    // Only add markers for ZIPs that lack a polygon
-    if (state.topoFeaturesById[row.postcode]) return;
+  Object.keys(state.zipDataMap).forEach(function (zip) {
+    // Skip ZIPs that already have a polygon
+    if (state.topoFeaturesById[zip]) return;
 
-    var entry = state.zipDataMap[row.postcode];
+    var entry = state.zipDataMap[zip];
     if (!entry) return;
 
-    // Respect filters
-    if (filtersActive && isFiltered(entry)) return;
+    // Look up coordinates from fallback table
+    var coords = FALLBACK_ZIP_COORDS[zip];
+    if (!coords) return;
 
-    var center = findNearestPolygonCenter(row.postcode);
-    if (!center) return;
+    var filtered = isFiltered(entry);
+    var isSelected = state.selectedZips[zip];
 
-    var isSelected = state.selectedZips[row.postcode];
-    var color = isSelected ? "#2563eb" : coverageColors.exception;
-    var marker = L.circleMarker(center, {
-      radius: 7,
+    // When filters active and entry is filtered out, hide it
+    if (filtered && filtersActive) return;
+
+    var color = isSelected ? "#2563eb" : getZipColor(entry);
+    var opacity = (filtered && !filtersActive) ? 0.2 : 0.8;
+
+    var marker = L.circleMarker(coords, {
+      radius: isSelected ? 8 : 6,
       fillColor: color,
-      fillOpacity: 0.75,
-      weight: 2,
+      fillOpacity: opacity,
+      weight: isSelected ? 2 : 1.5,
       color: isSelected ? "#1d4ed8" : "#fff",
       opacity: 0.9,
     });
 
-    marker.bindTooltip(buildTooltip(row.postcode, entry), {
+    marker.bindTooltip(buildTooltip(zip, entry), {
       sticky: true,
       className: "zip-tooltip",
       direction: "auto",
     });
 
     marker.on("click", function () {
-      toggleZipSelection(row.postcode);
+      toggleZipSelection(zip);
     });
 
-    markers.push(marker);
+    state.markerLayer.addLayer(marker);
   });
 
-  state.anomalyMarkerLayer = L.layerGroup(markers).addTo(state.map);
+  state.markerLayer.addTo(state.map);
+}
+
+// renderAnomalyMarkers is subsumed by renderNoPolygonMarkers which covers
+// all ZIPs without polygons (not just anomalies) using FALLBACK_ZIP_COORDS.
+export function renderAnomalyMarkers() {
+  // no-op: renderNoPolygonMarkers handles all no-polygon ZIPs
 }
 
 // ==================== Territory Borders ====================
@@ -434,6 +448,8 @@ export function refreshStyles() {
       direction: "auto",
     });
   });
+  // Re-render markers for no-polygon ZIPs
+  renderNoPolygonMarkers();
   // Re-render territory borders to match filter state
   renderTerritoryBorders();
   // Re-render anomaly markers (selection/filter state may have changed)

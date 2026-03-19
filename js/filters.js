@@ -7,7 +7,7 @@ import {
   hasActiveFilters, isFiltered, getExceptionInfo, coverageColors,
 } from "./state.js";
 import { escapeHTML, animateNumber } from "./utils.js";
-import { refreshStyles, renderTerritoryBorders } from "./map.js";
+import { refreshStyles, renderTerritoryBorders, FALLBACK_ZIP_COORDS } from "./map.js";
 
 // ==================== Populate Selects ====================
 export function populateSelects() {
@@ -275,17 +275,6 @@ function addLegendItem(container, color, label) {
 }
 
 // ==================== Exception (Anomaly) Table ====================
-function hasNearbyPolygon(zip) {
-  for (var len = 3; len >= 2; len--) {
-    var prefix = zip.substring(0, len);
-    var keys = Object.keys(state.topoFeaturesById);
-    for (var i = 0; i < keys.length; i++) {
-      if (keys[i].substring(0, len) === prefix) return true;
-    }
-  }
-  return false;
-}
-
 // searchUnmatchedZips: optional array of ZIP strings from search that have no dataset entry
 export function renderAnomalyTable(searchUnmatchedZips) {
   var data = getActiveData();
@@ -320,8 +309,8 @@ export function renderAnomalyTable(searchUnmatchedZips) {
   // Render standard SFDC-only exception rows
   data.sfdc_only.forEach(function (row) {
     var hasPolygon = !!state.topoFeaturesById[row.postcode];
-    // ZIPs without their own polygon are shown as circle markers if a nearby polygon exists
-    var hasMarker = !hasPolygon && hasNearbyPolygon(row.postcode);
+    // ZIPs without their own polygon are shown as circle markers via FALLBACK_ZIP_COORDS
+    var hasMarker = !hasPolygon && !!FALLBACK_ZIP_COORDS[row.postcode];
     var onMap = hasPolygon || hasMarker;
     var tr = document.createElement("tr");
     var accountNames = row.sfdc_accounts
