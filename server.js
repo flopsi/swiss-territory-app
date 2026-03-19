@@ -20,6 +20,14 @@ const fs = require("fs");
 const rateLimit = require("express-rate-limit");
 const storage = require("./storage");
 
+// Rate limiter for expensive TopoJSON file serving endpoint
+const topojsonLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false,  // Disable the `X-RateLimit-*` headers
+});
+
 const app = express();
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const IS_VERCEL = !!process.env.VERCEL;
@@ -214,7 +222,7 @@ app.get("/api/data", requireAuth, function (_req, res) {
 });
 
 // Serve TopoJSON
-app.get("/api/topojson", requireAuth, function (_req, res) {
+app.get("/api/topojson", requireAuth, topojsonLimiter, function (_req, res) {
   if (!IS_VERCEL) {
     var serverTopoPath = path.join(__dirname, "server-data", "ch-plz.topojson");
     if (fs.existsSync(serverTopoPath)) {
