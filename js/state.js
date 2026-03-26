@@ -48,7 +48,7 @@ export var coverageColors = {
   potential: "#f59e0b",
   exception: "#dc2626",
   anomaly: "#dc2626",  // alias kept for backward compat
-  excluded: "#8b5cf6",
+  excluded: "#56555a",
   identified: "#d946ef",  // Fuchsia for processed ZIPs with new target accounts
   unmatched: "#cbd5e1",
 };
