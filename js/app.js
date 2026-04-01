@@ -219,13 +219,15 @@ function initApp() {
     updateStats();
     updateLegend();
 
+    // Always refresh AM summary and leaderboard (works in both backend and static mode)
+    refreshAMSummary();
+    refreshLeaderboard();
+
     if (isBackendMode()) {
       var roleLabel = isViewOnly() ? " (view-only)" : "";
       document.getElementById("lastUpdated").textContent = "Data: loaded from server" + roleLabel;
       setupLogoutButton();
       refreshCostDisplay();
-      refreshAMSummary();
-      refreshLeaderboard();
       if (isViewOnly()) {
         disableWriteControls();
       }

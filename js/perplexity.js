@@ -263,78 +263,132 @@ export function refreshCostDisplay() {
     .catch(function () { /* silent */ });
 }
 
+// ==================== Static-mode helper: build AM stats from local data ====================
+/**
+ * In static mode (no backend), derive a leaderboard / AM summary from the
+ * in-memory ZIP data + identified overrides stored in localStorage.
+ * Returns an object { am: count } sorted desc.
+ */
+function buildLocalAMStats() {
+  var data = getActiveData();
+  if (!data) return {};
+  var entries = data.merged || data;
+  if (!Array.isArray(entries)) return {};
+
+  // Deduplicate by postcode — use first entry per ZIP for AM mapping
+  var zipSeen = {};
+  var amCounts = {};
+
+  entries.forEach(function (entry) {
+    var zip = String(entry.postcode || entry.zip || entry.ZIP || "").padStart(4, "0");
+    if (zipSeen[zip]) return; // skip duplicate postcode rows
+    zipSeen[zip] = true;
+
+    var status = (entry.status || "").toLowerCase();
+    var isIdentified = (status === "identified" || status === "covered new" || status === "covered_new");
+    var isOverrideIdentified = !!state.identifiedZips[zip];
+    var isOverrideExcluded = !!state.excludedZips[zip];
+
+    // Count if master-identified (and not overridden to excluded), or override-identified
+    if ((isIdentified && !isOverrideExcluded) || isOverrideIdentified) {
+      var am = entry.account_manager || entry.AM || "Unknown";
+      if (!amCounts[am]) amCounts[am] = 0;
+      amCounts[am]++;
+    }
+  });
+  return amCounts;
+}
+
 // ==================== AM Summary Table ====================
 /**
- * Shows newly identified companies count per Account Manager.
- * Fetches all identified companies from backend and groups by AM via ZIP→AM mapping.
+ * Shows identified ZIPs count per Account Manager.
+ * Backend mode: fetches identified companies from server.
+ * Static mode: derives from local ZIP data + identified overrides.
  */
 export function refreshAMSummary() {
-  if (!isBackendMode()) return;
-  var data = getActiveData();
-  if (!data) return;
+  if (isBackendMode()) {
+    var data = getActiveData();
+    if (!data) return;
+    apiRequest("/api/identified-companies", { method: "GET" })
+      .then(function (companies) {
+        var amCounts = {};
+        companies.forEach(function (c) {
+          var am = c.account_manager;
+          if (!am) {
+            var zip = (c.zip || "").padStart(4, "0");
+            var entry = state.zipDataMap[zip];
+            am = entry ? (entry.account_manager || "Unknown") : "Unknown";
+          }
+          if (!amCounts[am]) amCounts[am] = 0;
+          amCounts[am]++;
+        });
+        renderAMSummaryTable(amCounts);
+      })
+      .catch(function () { /* silent */ });
+  } else {
+    // Static mode: derive from local data
+    renderAMSummaryTable(buildLocalAMStats());
+  }
+}
 
-  apiRequest("/api/identified-companies", { method: "GET" })
-    .then(function (companies) {
-      var amCounts = {};
-      companies.forEach(function (c) {
-        var am = c.account_manager;
-        if (!am) {
-          // Fallback: look up from zipDataMap if account_manager not stored
-          var zip = (c.zip || "").padStart(4, "0");
-          var entry = state.zipDataMap[zip];
-          am = entry ? (entry.account_manager || "Unknown") : "Unknown";
-        }
-        if (!amCounts[am]) amCounts[am] = 0;
-        amCounts[am]++;
-      });
+function renderAMSummaryTable(amCounts) {
+  var tbody = document.getElementById("amSummaryBody");
+  if (!tbody) return;
+  tbody.innerHTML = "";
 
-      var tbody = document.getElementById("amSummaryBody");
-      if (!tbody) return;
-      tbody.innerHTML = "";
+  var sorted = Object.keys(amCounts).sort(function (a, b) { return amCounts[b] - amCounts[a]; });
+  sorted.forEach(function (am) {
+    var tr = document.createElement("tr");
+    tr.innerHTML =
+      "<td>" + escapeHTML(am) + "</td>" +
+      "<td><strong>" + amCounts[am] + "</strong></td>";
+    tbody.appendChild(tr);
+  });
 
-      var sorted = Object.keys(amCounts).sort(function (a, b) { return amCounts[b] - amCounts[a]; });
-      sorted.forEach(function (am) {
-        var tr = document.createElement("tr");
-        tr.innerHTML =
-          "<td>" + escapeHTML(am) + "</td>" +
-          "<td><strong>" + amCounts[am] + "</strong></td>";
-        tbody.appendChild(tr);
-      });
-
-      var container = document.getElementById("amSummarySection");
-      if (container) container.style.display = sorted.length > 0 ? "block" : "none";
-    })
-    .catch(function () { /* silent */ });
+  var container = document.getElementById("amSummarySection");
+  if (container) container.style.display = sorted.length > 0 ? "block" : "none";
 }
 
 // ==================== Leaderboard ====================
 
 export function refreshLeaderboard() {
-  if (!isBackendMode()) return;
-  apiRequest("/api/leaderboard", { method: "GET" })
-    .then(function (data) {
-      var tbody = document.getElementById("leaderboardBody");
-      if (!tbody) return;
-      tbody.innerHTML = "";
+  if (isBackendMode()) {
+    apiRequest("/api/leaderboard", { method: "GET" })
+      .then(function (data) {
+        var leaderboard = {};
+        Object.keys(data).forEach(function (user) {
+          leaderboard[user] = data[user].count || 0;
+        });
+        renderLeaderboardTable(leaderboard);
+      })
+      .catch(function () { /* silent */ });
+  } else {
+    // Static mode: show AMs ranked by identified ZIP count
+    renderLeaderboardTable(buildLocalAMStats());
+  }
+}
 
-      var users = Object.keys(data).sort(function (a, b) {
-        return (data[b].count || 0) - (data[a].count || 0);
-      });
+function renderLeaderboardTable(userCounts) {
+  var tbody = document.getElementById("leaderboardBody");
+  if (!tbody) return;
+  tbody.innerHTML = "";
 
-      users.forEach(function (user, idx) {
-        var tr = document.createElement("tr");
-        var medal = idx === 0 ? " \ud83e\udd47" : idx === 1 ? " \ud83e\udd48" : idx === 2 ? " \ud83e\udd49" : "";
-        tr.innerHTML =
-          "<td>" + (idx + 1) + medal + "</td>" +
-          "<td>" + escapeHTML(user) + "</td>" +
-          "<td><strong>" + (data[user].count || 0) + "</strong></td>";
-        tbody.appendChild(tr);
-      });
+  var users = Object.keys(userCounts).sort(function (a, b) {
+    return (userCounts[b] || 0) - (userCounts[a] || 0);
+  });
 
-      var container = document.getElementById("leaderboardSection");
-      if (container) container.style.display = users.length > 0 ? "block" : "none";
-    })
-    .catch(function () { /* silent */ });
+  users.forEach(function (user, idx) {
+    var tr = document.createElement("tr");
+    var medal = idx === 0 ? " \ud83e\udd47" : idx === 1 ? " \ud83e\udd48" : idx === 2 ? " \ud83e\udd49" : "";
+    tr.innerHTML =
+      "<td>" + (idx + 1) + medal + "</td>" +
+      "<td>" + escapeHTML(user) + "</td>" +
+      "<td><strong>" + (userCounts[user] || 0) + "</strong></td>";
+    tbody.appendChild(tr);
+  });
+
+  var container = document.getElementById("leaderboardSection");
+  if (container) container.style.display = users.length > 0 ? "block" : "none";
 }
 
 // ==================== Session Memory Count Display ====================
