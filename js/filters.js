@@ -9,6 +9,7 @@ import {
 } from "./state.js";
 import { escapeHTML, animateNumber } from "./utils.js";
 import { refreshStyles, renderTerritoryBorders } from "./map.js";
+import { applyNonMapFilters } from "./nonmap.js";
 
 // Strip diacritics for fuzzy city search (Zürich → Zurich, Genève → Geneve)
 function _stripDiacritics(str) {
@@ -98,6 +99,7 @@ export function onFilterChange() {
   updateStats();
   updateLegend();
   refreshStyles();
+  applyNonMapFilters();
 }
 
 // ==================== Search Feedback ====================

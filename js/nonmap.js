@@ -118,10 +118,15 @@ export function renderNonMapTable() {
     }[eff] || eff;
 
     var tr = document.createElement("tr");
+    var manager = entry ? (entry.account_manager || "") : "";
+    var territory = entry ? (entry.territory_id || "") : "";
+
     tr.className = "nonmap-row";
     tr.dataset.zip = zip;
     tr.dataset.city = stripDiacritics(city.toLowerCase());
     tr.dataset.status = eff;
+    tr.dataset.manager = manager;
+    tr.dataset.territory = territory;
 
     tr.innerHTML =
       '<td class="nonmap-cb-cell"><input type="checkbox" class="nonmap-row-cb" data-zip="' + zip + '"' + (isSelected ? " checked" : "") + '></td>' +
@@ -137,12 +142,13 @@ export function renderNonMapTable() {
 }
 
 // ==================== Filter Table ====================
+// Applies text query + sidebar global filters (AM, territory, status)
 function filterNonMapTable(query) {
   var tbody = document.getElementById("nonMapBody");
   if (!tbody) return;
   var rows = tbody.querySelectorAll(".nonmap-row");
-  var ql = stripDiacritics(query.toLowerCase());
-  var isZipQuery = /^\d+$/.test(query);
+  var ql = query != null ? stripDiacritics(query.toLowerCase()) : "";
+  var isZipQuery = /^\d+$/.test(ql);
   var visibleCount = 0;
 
   for (var i = 0; i < rows.length; i++) {
@@ -151,6 +157,7 @@ function filterNonMapTable(query) {
     var city = row.dataset.city;
     var match = true;
 
+    // Text filter (ZIP / city search within the non-map panel)
     if (ql) {
       if (isZipQuery) {
         match = zip.indexOf(ql) >= 0;
@@ -159,13 +166,29 @@ function filterNonMapTable(query) {
       }
     }
 
+    // Account Manager filter (follow sidebar)
+    if (match && state.filterManagers.length > 0) {
+      match = state.filterManagers.indexOf(row.dataset.manager) >= 0;
+    }
+
+    // Territory filter (follow sidebar)
+    if (match && state.filterTerritory) {
+      match = row.dataset.territory === state.filterTerritory;
+    }
+
+    // Status filter (follow sidebar)
+    if (match && state.filterStatus) {
+      match = row.dataset.status === state.filterStatus;
+    }
+
     row.style.display = match ? "" : "none";
     if (match) visibleCount++;
   }
 
   var filterCount = document.getElementById("nonMapFilterCount");
   if (filterCount) {
-    if (ql) {
+    var hasAnyFilter = ql || state.filterManagers.length > 0 || state.filterTerritory || state.filterStatus;
+    if (hasAnyFilter) {
       filterCount.textContent = visibleCount + "/" + rows.length + " shown";
       filterCount.style.display = "inline";
     } else {
@@ -175,6 +198,16 @@ function filterNonMapTable(query) {
   }
 
   updateNonMapSelectAllState();
+}
+
+/**
+ * Re-apply filters to non-map table when sidebar filters change.
+ * Called from onFilterChange in filters.js.
+ */
+export function applyNonMapFilters() {
+  var filterInput = document.getElementById("nonMapFilter");
+  var query = filterInput ? filterInput.value.trim() : "";
+  filterNonMapTable(query);
 }
 
 // ==================== Select All (visible rows) ====================
