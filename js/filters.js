@@ -202,6 +202,10 @@ export function updateStats() {
   // Identified in advanced tools
   var idEl = document.getElementById("statIdentified");
   if (idEl) idEl.textContent = identified;
+
+  // Override counts in advanced tools
+  var overExclEl = document.getElementById("statOverriddenExcluded");
+  if (overExclEl) overExclEl.textContent = Object.keys(state.excludedZips).length;
 }
 
 // ==================== Legend ====================

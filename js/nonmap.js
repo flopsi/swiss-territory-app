@@ -1,6 +1,7 @@
 /**
- * nonmap.js — Search/input workflow for ZIPs not displayed as map polygons.
- * Rewritten for flat master JSON with 5 statuses.
+ * nonmap.js — Table-based display and selection for ZIPs without map polygons.
+ * Shows a filterable, scrollable table with checkboxes. Selected ZIPs feed
+ * into the same selectedZips state used by map selections.
  */
 
 import {
@@ -18,185 +19,217 @@ export function setupNonMapPanel() {
   var container = document.getElementById("nonMapSection");
   if (!container) return;
 
-  var input = document.getElementById("nonMapInput");
-  var suggestions = document.getElementById("nonMapSuggestions");
-  var addBtn = document.getElementById("btnAddNonMapZips");
-  var chips = document.getElementById("nonMapChips");
-
-  if (!input || !addBtn) return;
+  var filterInput = document.getElementById("nonMapFilter");
+  var selectAllCb = document.getElementById("nonMapSelectAll");
 
   container.style.display = "block";
 
-  var debounce = null;
-  input.addEventListener("input", function () {
-    clearTimeout(debounce);
-    debounce = setTimeout(function () {
-      renderSuggestions(input.value.trim(), suggestions);
-    }, 150);
-  });
+  // Render full table on init
+  renderNonMapTable();
 
-  input.addEventListener("keydown", function (e) {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      addZipsFromInput(input, suggestions);
-    }
-  });
+  // Filter input
+  if (filterInput) {
+    var debounce = null;
+    filterInput.addEventListener("input", function () {
+      clearTimeout(debounce);
+      debounce = setTimeout(function () {
+        filterNonMapTable(filterInput.value.trim());
+      }, 150);
+    });
+  }
 
-  addBtn.addEventListener("click", function () {
-    addZipsFromInput(input, suggestions);
-  });
+  // Select-all checkbox
+  if (selectAllCb) {
+    selectAllCb.addEventListener("change", function () {
+      toggleSelectAllVisible(selectAllCb.checked);
+    });
+  }
 
-  suggestions.addEventListener("click", function (e) {
-    var item = e.target.closest(".nonmap-suggestion");
-    if (!item) return;
-    var zip = item.dataset.zip;
-    if (zip) {
-      state.selectedZips[zip] = true;
-      refreshStyles();
-      updateSelectionTray();
-      renderNonMapChips();
-      item.remove();
-      if (suggestions.children.length === 0) {
-        suggestions.style.display = "none";
+  // Delegated click on table body checkboxes
+  var tbody = document.getElementById("nonMapBody");
+  if (tbody) {
+    tbody.addEventListener("change", function (e) {
+      if (e.target.classList.contains("nonmap-row-cb")) {
+        var zip = e.target.dataset.zip;
+        if (e.target.checked) {
+          state.selectedZips[zip] = true;
+        } else {
+          delete state.selectedZips[zip];
+        }
+        refreshStyles();
+        updateSelectionTray();
+        updateNonMapSelectAllState();
+        renderNonMapChips();
       }
-    }
-  });
+    });
+  }
 
-  chips.addEventListener("click", function (e) {
-    var removeBtn = e.target.closest(".chip-remove");
-    if (removeBtn) {
-      var zip = removeBtn.dataset.zip;
-      delete state.selectedZips[zip];
-      refreshStyles();
-      updateSelectionTray();
-      renderNonMapChips();
-    }
-  });
+  // Chips removal
+  var chips = document.getElementById("nonMapChips");
+  if (chips) {
+    chips.addEventListener("click", function (e) {
+      var removeBtn = e.target.closest(".chip-remove");
+      if (removeBtn) {
+        var zip = removeBtn.dataset.zip;
+        delete state.selectedZips[zip];
+        // Uncheck the table row
+        var cb = document.querySelector('.nonmap-row-cb[data-zip="' + zip + '"]');
+        if (cb) cb.checked = false;
+        refreshStyles();
+        updateSelectionTray();
+        updateNonMapSelectAllState();
+        renderNonMapChips();
+      }
+    });
+  }
 
   renderNonMapChips();
 }
 
-// ==================== Render Suggestions ====================
-function renderSuggestions(query, container) {
-  container.innerHTML = "";
-  if (!query) {
-    container.style.display = "none";
+// ==================== Render Table ====================
+export function renderNonMapTable() {
+  var tbody = document.getElementById("nonMapBody");
+  var countEl = document.getElementById("nonMapCount");
+  if (!tbody) return;
+
+  var nonMapKeys = Object.keys(state.nonMapZips).sort();
+  if (countEl) countEl.textContent = nonMapKeys.length;
+
+  tbody.innerHTML = "";
+
+  if (nonMapKeys.length === 0) {
+    var tr = document.createElement("tr");
+    tr.innerHTML = '<td colspan="5" class="nonmap-empty-cell">No non-map ZIPs found.</td>';
+    tbody.appendChild(tr);
     return;
   }
 
-  var ql = stripDiacritics(query.toLowerCase());
-  var isZipQuery = /^\d+$/.test(query);
-  var matches = [];
-
-  var nonMapKeys = Object.keys(state.nonMapZips);
   for (var i = 0; i < nonMapKeys.length; i++) {
     var zip = nonMapKeys[i];
     var entry = state.zipDataMap[zip];
     var city = entry ? (entry.official_city || "") : "";
-    var cityNorm = stripDiacritics(city.toLowerCase());
+    var canton = entry ? (entry.canton || "") : "";
+    var eff = entry ? getEffectiveStatus(entry) : "unmatched";
+    var isSelected = !!state.selectedZips[zip];
 
-    var match = false;
-    if (isZipQuery) {
-      match = zip.indexOf(ql) >= 0;
-    } else {
-      match = cityNorm.indexOf(ql) >= 0 || zip.indexOf(ql) >= 0;
-    }
-
-    if (match && entry) {
-      if (isFiltered(entry) && (state.filterManagers.length > 0 || state.filterTerritory || state.filterStatus)) {
-        continue;
-      }
-    }
-
-    if (match) {
-      matches.push({ zip: zip, city: city, entry: entry });
-    }
-    if (matches.length >= 50) break;
-  }
-
-  if (matches.length === 0) {
-    container.style.display = "none";
-    return;
-  }
-
-  matches.sort(function (a, b) { return a.zip.localeCompare(b.zip); });
-
-  matches.forEach(function (m) {
-    var div = document.createElement("div");
-    div.className = "nonmap-suggestion";
-    div.dataset.zip = m.zip;
-
-    var eff = m.entry ? getEffectiveStatus(m.entry) : "unmatched";
-    var isSelected = !!state.selectedZips[m.zip];
     var statusLabel = {
       covered: "Covered", "covered new": "Covered New", potential: "Potential",
       prospect: "Prospect", excluded: "Excluded", identified: "Identified", unmatched: "No data",
     }[eff] || eff;
 
-    div.innerHTML =
-      '<span class="nonmap-zip">' + m.zip + '</span>' +
-      '<span class="nonmap-city">' + escapeHTML(m.city) + '</span>' +
-      '<span class="nonmap-status nonmap-status-' + eff.replace(" ", "-") + '">' + statusLabel + '</span>' +
-      (isSelected ? '<span class="nonmap-selected-badge">Selected</span>' : '');
+    var tr = document.createElement("tr");
+    tr.className = "nonmap-row";
+    tr.dataset.zip = zip;
+    tr.dataset.city = stripDiacritics(city.toLowerCase());
+    tr.dataset.status = eff;
 
-    if (isSelected) div.classList.add("nonmap-suggestion-selected");
+    tr.innerHTML =
+      '<td class="nonmap-cb-cell"><input type="checkbox" class="nonmap-row-cb" data-zip="' + zip + '"' + (isSelected ? " checked" : "") + '></td>' +
+      '<td class="nonmap-zip-cell">' + zip + '</td>' +
+      '<td class="nonmap-city-cell">' + escapeHTML(city) + '</td>' +
+      '<td class="nonmap-canton-cell">' + escapeHTML(canton) + '</td>' +
+      '<td class="nonmap-status-cell"><span class="nonmap-status nonmap-status-' + eff.replace(" ", "-") + '">' + statusLabel + '</span></td>';
 
-    container.appendChild(div);
-  });
-
-  container.style.display = "block";
-}
-
-// ==================== Add ZIPs from Input ====================
-function addZipsFromInput(input, suggestionsContainer) {
-  var raw = input.value.trim();
-  if (!raw) return;
-
-  var parts = raw.split(/[,;\s]+/).filter(Boolean);
-  var added = 0;
-
-  parts.forEach(function (part) {
-    var z = part.replace(/[^\d]/g, "");
-    if (!z) return;
-    while (z.length < 4) z = "0" + z;
-    if (z.length !== 4) return;
-
-    var isKnownNonMap = !!state.nonMapZips[z] && !!state.zipDataMap[z];
-
-    if (isKnownNonMap) {
-      state.selectedZips[z] = true;
-      added++;
-    }
-  });
-
-  if (added > 0) {
-    refreshStyles();
-    updateSelectionTray();
-    renderNonMapChips();
+    tbody.appendChild(tr);
   }
 
-  input.value = "";
-  suggestionsContainer.innerHTML = "";
-  suggestionsContainer.style.display = "none";
+  updateNonMapSelectAllState();
+}
 
-  var feedback = document.getElementById("nonMapFeedback");
-  if (feedback) {
-    if (added > 0) {
-      feedback.textContent = added + " ZIP" + (added > 1 ? "s" : "") + " added to selection.";
-      feedback.className = "nonmap-feedback nonmap-feedback-success";
+// ==================== Filter Table ====================
+function filterNonMapTable(query) {
+  var tbody = document.getElementById("nonMapBody");
+  if (!tbody) return;
+  var rows = tbody.querySelectorAll(".nonmap-row");
+  var ql = stripDiacritics(query.toLowerCase());
+  var isZipQuery = /^\d+$/.test(query);
+  var visibleCount = 0;
+
+  for (var i = 0; i < rows.length; i++) {
+    var row = rows[i];
+    var zip = row.dataset.zip;
+    var city = row.dataset.city;
+    var match = true;
+
+    if (ql) {
+      if (isZipQuery) {
+        match = zip.indexOf(ql) >= 0;
+      } else {
+        match = city.indexOf(ql) >= 0 || zip.indexOf(ql) >= 0;
+      }
+    }
+
+    row.style.display = match ? "" : "none";
+    if (match) visibleCount++;
+  }
+
+  var filterCount = document.getElementById("nonMapFilterCount");
+  if (filterCount) {
+    if (ql) {
+      filterCount.textContent = visibleCount + "/" + rows.length + " shown";
+      filterCount.style.display = "inline";
     } else {
-      feedback.textContent = "No valid non-map ZIPs found in input.";
-      feedback.className = "nonmap-feedback nonmap-feedback-warn";
+      filterCount.textContent = "";
+      filterCount.style.display = "none";
     }
-    feedback.style.display = "block";
-    setTimeout(function () { feedback.style.display = "none"; }, 3000);
   }
+
+  updateNonMapSelectAllState();
 }
 
-// ==================== Render Non-Map Chips ====================
+// ==================== Select All (visible rows) ====================
+function toggleSelectAllVisible(checked) {
+  var tbody = document.getElementById("nonMapBody");
+  if (!tbody) return;
+  var rows = tbody.querySelectorAll(".nonmap-row");
+
+  for (var i = 0; i < rows.length; i++) {
+    if (rows[i].style.display === "none") continue;
+    var cb = rows[i].querySelector(".nonmap-row-cb");
+    if (!cb) continue;
+    var zip = cb.dataset.zip;
+    cb.checked = checked;
+    if (checked) {
+      state.selectedZips[zip] = true;
+    } else {
+      delete state.selectedZips[zip];
+    }
+  }
+  refreshStyles();
+  updateSelectionTray();
+  renderNonMapChips();
+}
+
+function updateNonMapSelectAllState() {
+  var selectAllCb = document.getElementById("nonMapSelectAll");
+  if (!selectAllCb) return;
+  var tbody = document.getElementById("nonMapBody");
+  if (!tbody) return;
+
+  var visibleCbs = [];
+  var rows = tbody.querySelectorAll(".nonmap-row");
+  for (var i = 0; i < rows.length; i++) {
+    if (rows[i].style.display === "none") continue;
+    var cb = rows[i].querySelector(".nonmap-row-cb");
+    if (cb) visibleCbs.push(cb);
+  }
+
+  if (visibleCbs.length === 0) {
+    selectAllCb.checked = false;
+    selectAllCb.indeterminate = false;
+    return;
+  }
+
+  var allChecked = visibleCbs.every(function (cb) { return cb.checked; });
+  var someChecked = visibleCbs.some(function (cb) { return cb.checked; });
+
+  selectAllCb.checked = allChecked;
+  selectAllCb.indeterminate = !allChecked && someChecked;
+}
+
+// ==================== Render Chips (selected non-map ZIPs) ====================
 export function renderNonMapChips() {
   var chips = document.getElementById("nonMapChips");
-  var countEl = document.getElementById("nonMapCount");
   if (!chips) return;
 
   var selectedNonMap = [];
@@ -207,12 +240,8 @@ export function renderNonMapChips() {
     }
   }
 
-  if (countEl) {
-    countEl.textContent = Object.keys(state.nonMapZips).length;
-  }
-
   if (selectedNonMap.length === 0) {
-    chips.innerHTML = '<span class="nonmap-empty">No non-map ZIPs selected. Use the search above or enter ZIPs manually.</span>';
+    chips.innerHTML = "";
     return;
   }
 

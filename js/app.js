@@ -11,6 +11,7 @@ import {
 import {
   probeBackend, isBackendMode, isViewOnly, login, logout,
   loadSavedState, loadAppData, loadTopoJSON, uploadExcludedZips,
+  saveExcluded, saveIdentified,
 } from "./api.js";
 import {
   setupMap, loadBoundaries, clearSelection,
@@ -26,7 +27,7 @@ import { exportExcludedZips, exportIdentifiedZips, exportSelectedZips, exportFul
 import { setupUploadEvents, showResetDataButton } from "./uploads.js";
 import { runSonarSearch, refreshCostDisplay, refreshAMSummary, refreshLeaderboard, updateMemoryCount, downloadSonarCSV } from "./perplexity.js";
 import { initAnalytics, trackEvent } from "./analytics.js";
-import { setupNonMapPanel, renderNonMapChips } from "./nonmap.js";
+import { setupNonMapPanel, renderNonMapChips, renderNonMapTable } from "./nonmap.js";
 
 // ==================== Login Screen ====================
 function showLoginScreen() {
@@ -463,6 +464,36 @@ function setupEventListeners() {
     btnDownloadSonar.addEventListener("click", function () {
       trackEvent("sonar_download_csv");
       downloadSonarCSV();
+    });
+  }
+
+  // Clear Overrides button
+  var btnClearOverrides = document.getElementById("btnClearOverrides");
+  if (btnClearOverrides) {
+    btnClearOverrides.addEventListener("click", function () {
+      var exclCount = Object.keys(state.excludedZips).length;
+      var identCount = Object.keys(state.identifiedZips).length;
+      if (exclCount === 0 && identCount === 0) {
+        alert("No overrides to clear.");
+        return;
+      }
+      if (!confirm(
+        "Clear all interactive overrides?\n\n" +
+        "This will remove " + exclCount + " excluded and " + identCount + " identified override(s).\n" +
+        "ZIPs will revert to their master-file status."
+      )) return;
+
+      state.excludedZips = {};
+      state.identifiedZips = {};
+      state.undoStack = [];
+      saveExcluded({});
+      saveIdentified({});
+      refreshStyles();
+      updateSelectionTray();
+      updateStats();
+      updateLegend();
+      renderNonMapTable();
+      renderNonMapChips();
     });
   }
 

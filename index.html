@@ -130,17 +130,29 @@
           </div>
         </div>
 
-        <!-- Non-Map ZIP Search & Entry -->
+        <!-- Non-Map ZIP Table -->
         <div class="sidebar-section" id="nonMapSection" style="display:none;">
           <div class="section-heading">NON-MAP ZIPS <span class="nonmap-count-badge" id="nonMapCount">0</span></div>
           <div class="section-body">
-            <p class="filter-hint" style="margin-bottom:6px;">ZIPs without map polygons (PO boxes, sub-delivery areas). Search or enter multiple ZIPs to select them.</p>
-            <div class="nonmap-input-row">
-              <input type="text" id="nonMapInput" class="filter-select" placeholder="e.g. 8000, 1211, 3001" autocomplete="off">
-              <button class="tray-btn tray-btn-primary nonmap-add-btn" id="btnAddNonMapZips" title="Add entered ZIPs to selection">Add</button>
+            <p class="filter-hint" style="margin-bottom:6px;">ZIPs without map polygons (PO boxes, sub-delivery areas). Check rows to select them.</p>
+            <div class="nonmap-filter-row">
+              <input type="text" id="nonMapFilter" class="filter-select" placeholder="Filter by ZIP or city..." autocomplete="off">
+              <span id="nonMapFilterCount" class="filter-hint" style="display:none;white-space:nowrap;"></span>
             </div>
-            <div id="nonMapSuggestions" class="nonmap-suggestions" style="display:none;"></div>
-            <div id="nonMapFeedback" class="nonmap-feedback" style="display:none;"></div>
+            <div class="nonmap-table-wrap">
+              <table class="nonmap-table" id="nonMapTable">
+                <thead>
+                  <tr>
+                    <th class="nonmap-th-cb"><input type="checkbox" id="nonMapSelectAll" title="Select / deselect all visible"></th>
+                    <th>ZIP</th>
+                    <th>City</th>
+                    <th>Canton</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="nonMapBody"></tbody>
+              </table>
+            </div>
             <div id="nonMapChips" class="nonmap-chips"></div>
           </div>
         </div>
@@ -202,6 +214,13 @@
           <div class="section-body">
             <div class="mini-stats">
               <span class="mini-stat"><span class="mini-val stat-val-identified" id="statIdentified">0</span> Identified</span>
+              <span class="mini-stat"><span class="mini-val stat-val-gray" id="statOverriddenExcluded">0</span> Overridden Excl.</span>
+            </div>
+            <div class="export-buttons" style="margin-bottom:6px;">
+              <button class="export-btn export-btn-danger" id="btnClearOverrides" title="Clear all excluded/identified overrides from local storage">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                Clear All Overrides
+              </button>
             </div>
             <div class="export-buttons">
               <button class="export-btn" id="exportFullMaster" title="Export full territory master as CSV">

@@ -57,13 +57,16 @@ export function runSonarSearch() {
   disableSonarBtn(true);
 
   var payload = companies.map(function (c) {
+    var zip = (c.postalCode || c.zip || "").toString().padStart(4, "0");
+    var entry = state.zipDataMap[zip];
     return {
       name: c.legalName || c.name || "",
-      zip: c.postalCode || c.zip || "",
+      zip: zip,
       locality: c.locality || "",
       uid: c.uid || "",
       org: c.org || "",
       purpose: c.purpose || "",
+      account_manager: entry ? (entry.account_manager || "") : "",
     };
   });
 
@@ -274,9 +277,13 @@ export function refreshAMSummary() {
     .then(function (companies) {
       var amCounts = {};
       companies.forEach(function (c) {
-        var zip = (c.zip || "").padStart(4, "0");
-        var entry = state.zipDataMap[zip];
-        var am = entry ? (entry.account_manager || "Unknown") : "Unknown";
+        var am = c.account_manager;
+        if (!am) {
+          // Fallback: look up from zipDataMap if account_manager not stored
+          var zip = (c.zip || "").padStart(4, "0");
+          var entry = state.zipDataMap[zip];
+          am = entry ? (entry.account_manager || "Unknown") : "Unknown";
+        }
         if (!amCounts[am]) amCounts[am] = 0;
         amCounts[am]++;
       });

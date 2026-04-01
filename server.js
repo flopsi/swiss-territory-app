@@ -492,24 +492,41 @@ app.post("/api/sonar-search", requireWrite, sonarLimiter, function (req, res) {
           return storage.putSonarCosts(costs);
         });
 
-        // Persist identified companies for companies classified as target
+        // Persist identified companies for companies classified as target (with dedup)
         var companiesPromise = storage.getIdentifiedCompanies().then(function (existing) {
           var now = new Date().toISOString();
+          // Build dedup key set from existing companies
+          var existingKeys = {};
+          existing.forEach(function (c) {
+            var key = (c.name || "").toLowerCase() + "|" + (c.zip || "").padStart(4, "0");
+            existingKeys[key] = true;
+            if (c.uid) existingKeys["uid:" + c.uid] = true;
+          });
+          var added = 0;
           results.forEach(function (r) {
             if (r.sonar && r.sonar.is_target) {
+              var name = r.name || r.legalName || "";
+              var zip = (r.zip || r.postalCode || "").padStart(4, "0");
+              var uid = r.uid || "";
+              var key = name.toLowerCase() + "|" + zip;
+              if (existingKeys[key] || (uid && existingKeys["uid:" + uid])) return;
+              existingKeys[key] = true;
+              if (uid) existingKeys["uid:" + uid] = true;
               existing.push({
-                name: r.name || r.legalName || "",
-                zip: r.zip || r.postalCode || "",
+                name: name,
+                zip: zip,
                 locality: r.locality || "",
-                uid: r.uid || "",
+                uid: uid,
                 org: r.org || "",
                 purpose: r.purpose || "",
+                account_manager: r.account_manager || "",
                 source: r.cached ? "sonar-cached" : "sonar",
                 is_target: true,
                 reason: r.sonar.reason,
                 identified_at: now,
                 identified_by: user,
               });
+              added++;
             }
           });
           return storage.putIdentifiedCompanies(existing);
@@ -567,7 +584,7 @@ app.get("/api/identified-companies", requireAuth, function (_req, res) {
     .catch(function () { res.json([]); });
 });
 
-// Add companies from ZEFIX (manual identification)
+// Add companies from ZEFIX (manual identification) — with dedup
 app.post("/api/identified-companies", requireWrite, function (req, res) {
   var newCompanies = req.body.companies;
   var user = req.session.user || "unknown";
@@ -577,32 +594,51 @@ app.post("/api/identified-companies", requireWrite, function (req, res) {
   storage.getIdentifiedCompanies()
     .then(function (existing) {
       var now = new Date().toISOString();
+      // Build dedup key set from existing companies
+      var existingKeys = {};
+      existing.forEach(function (c) {
+        var key = (c.name || "").toLowerCase() + "|" + (c.zip || "").padStart(4, "0");
+        existingKeys[key] = true;
+        if (c.uid) existingKeys["uid:" + c.uid] = true;
+      });
+      var added = 0;
       newCompanies.forEach(function (c) {
+        var name = c.legalName || c.name || "";
+        var zip = (c.postalCode || c.zip || "").padStart(4, "0");
+        var uid = c.uid || "";
+        var key = name.toLowerCase() + "|" + zip;
+        if (existingKeys[key] || (uid && existingKeys["uid:" + uid])) return;
+        existingKeys[key] = true;
+        if (uid) existingKeys["uid:" + uid] = true;
         existing.push({
-          name: c.legalName || c.name || "",
-          zip: c.postalCode || c.zip || "",
+          name: name,
+          zip: zip,
           locality: c.locality || "",
-          uid: c.uid || "",
+          uid: uid,
           org: c.org || "",
           purpose: c.purpose || "",
+          account_manager: c.account_manager || "",
           source: "zefix",
           is_target: true,
           reason: "Manually identified from ZEFIX",
           identified_at: now,
           identified_by: user,
         });
+        added++;
       });
 
-      // Update leaderboard for ZEFIX identifications
+      // Update leaderboard only for newly added companies
       return storage.getLeaderboard().then(function (lb) {
-        if (!lb[user]) lb[user] = { count: 0, last_at: null };
-        lb[user].count += newCompanies.length;
-        lb[user].last_at = now;
+        if (added > 0) {
+          if (!lb[user]) lb[user] = { count: 0, last_at: null };
+          lb[user].count += added;
+          lb[user].last_at = now;
+        }
         return storage.putLeaderboard(lb);
       }).then(function () {
         return storage.putIdentifiedCompanies(existing);
       }).then(function () {
-        res.json({ saved: true, total: existing.length });
+        res.json({ saved: true, total: existing.length, added: added, skipped: newCompanies.length - added });
       });
     })
     .catch(function (err) {
@@ -615,11 +651,11 @@ app.post("/api/identified-companies", requireWrite, function (req, res) {
 app.get("/api/identified-companies.csv", requireAuth, function (_req, res) {
   storage.getIdentifiedCompanies()
     .then(function (data) {
-      var header = "Company_Name,ZIP,Locality,UID,Source,Is_Target,Reason,Identified_At,Identified_By";
+      var header = "Company_Name,ZIP,Locality,UID,Account_Manager,Source,Is_Target,Reason,Identified_At,Identified_By";
       var rows = (data || []).map(function (c) {
         return [
           csvQuote(c.name), csvQuote(c.zip), csvQuote(c.locality), csvQuote(c.uid),
-          csvQuote(c.source), c.is_target ? "true" : "false",
+          csvQuote(c.account_manager), csvQuote(c.source), c.is_target ? "true" : "false",
           csvQuote(c.reason), csvQuote(c.identified_at), csvQuote(c.identified_by),
         ].join(",");
       });
