@@ -1,0 +1,43 @@
+# Python backend (not used on GitHub Pages)
+api_server.py
+preprocess.py
+swiss_territory_state.db
+*.pyc
+__pycache__/
+*.egg-info/
+
+# Logs
+*.log
+backend_server.log
+local_server.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Server-side data (not used on GitHub Pages)
+server-data/
+.mcp.json
+
+# Environment
+.env
+.env.local
+.env.production
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Node (if any tooling is added later)
+node_modules/
+
+# Refactor docs (internal development notes)
+REFACTOR_SUMMARY.md
+REFACTOR_VALIDATION_NOTES.md

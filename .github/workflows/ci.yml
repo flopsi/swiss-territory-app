@@ -1,0 +1,151 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── 1. Secret scanning ──────────────────────────────────────
+      - name: Scan for hardcoded secrets
+        run: |
+          echo "Scanning for potential secrets..."
+          if grep -rEi '(password|secret|api_key|token)\s*[:=]\s*["\x27][^\s"'\'']{6,}' \
+               --include='*.js' --include='*.html' --include='*.json' .; then
+            echo "::error::Potential hardcoded secret found in source files!"
+            exit 1
+          fi
+          if grep -rn 'UPLOAD_PASSWORD\|swissterritory2026' js/ index.html 2>/dev/null; then
+            echo "::error::Hardcoded password found!"
+            exit 1
+          fi
+          echo "No secrets detected."
+
+      # ── 2. Node setup & dependencies ───────────────────────────
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci --ignore-scripts
+          elif [ -f package.json ]; then
+            npm install --ignore-scripts
+          else
+            echo "No package.json — skipping npm install"
+          fi
+
+      # ── 3. HTML & security header validation ────────────────────
+      - name: Validate HTML structure and security headers
+        run: |
+          test -f index.html || { echo "::error::index.html not found"; exit 1; }
+          grep -q '<!DOCTYPE html>' index.html || { echo "::error::Missing DOCTYPE"; exit 1; }
+          grep -q 'Content-Security-Policy' index.html || { echo "::error::Missing CSP meta tag"; exit 1; }
+          grep -q 'X-Content-Type-Options' index.html || { echo "::error::Missing X-Content-Type-Options"; exit 1; }
+          grep -q 'referrer' index.html || { echo "::warning::Missing referrer policy"; }
+          echo "HTML structure and security headers OK."
+
+      # ── 4. JS module and asset checks ───────────────────────────
+      - name: Validate JS modules exist
+        run: |
+          echo "Checking required JS modules..."
+          for f in js/app.js js/state.js js/api.js js/map.js js/filters.js js/zefix.js js/exports.js js/uploads.js js/utils.js; do
+            test -f "$f" || { echo "::error::Missing $f"; exit 1; }
+          done
+          echo "All JS modules present."
+
+      - name: Validate JS imports resolve
+        run: |
+          echo "Checking JS import references..."
+          ERRORS=0
+          for f in js/*.js; do
+            while IFS= read -r line; do
+              path=$(echo "$line" | sed -n 's/.*from\s*"\(.*\)".*/\1/p')
+              [ -z "$path" ] && path=$(echo "$line" | sed -n "s/.*from\s*'\(.*\)'.*/\1/p")
+              if [ -n "$path" ]; then
+                resolved="js/$(echo "$path" | sed 's|^\./||')"
+                if [ ! -f "$resolved" ]; then
+                  echo "::error::Broken import in $f: $path → $resolved"
+                  ERRORS=$((ERRORS + 1))
+                fi
+              fi
+            done < <(grep -n '^\s*import' "$f" 2>/dev/null || true)
+          done
+          if [ "$ERRORS" -gt 0 ]; then
+            echo "::error::$ERRORS broken JS import(s) found"
+            exit 1
+          fi
+          echo "All JS imports resolve correctly."
+
+      # ── 5. Data files and deployment safety ─────────────────────
+      - name: Confirm required data files exist
+        run: |
+          echo "Verifying bundled data files are present..."
+          for f in data/data.js data/ch-plz.js data/ch-plz.topojson; do
+            if [ ! -f "$f" ]; then
+              echo "::error::$f is missing — required for static fallback"
+              exit 1
+            fi
+          done
+          if [ -d "server-data" ]; then
+            echo "::error::server-data/ directory should not be committed"
+            exit 1
+          fi
+          echo "Required data files present."
+
+      - name: Verify no legacy backend references in frontend
+        run: |
+          if grep -rn 'localhost:8000\|__PORT_8000__\|uvicorn\|fastapi\|api_server' js/ index.html 2>/dev/null; then
+            echo "::error::Legacy backend references found in frontend code!"
+            exit 1
+          fi
+          echo "No legacy backend references in frontend code."
+
+      # ── 6. .gitignore safety ────────────────────────────────────
+      - name: Verify .gitignore excludes sensitive files
+        run: |
+          test -f .gitignore || { echo "::error::Missing .gitignore"; exit 1; }
+          for pattern in swiss_territory_state.db api_server.py '.env' 'server-data'; do
+            grep -q "$pattern" .gitignore || { echo "::error::.gitignore missing exclusion for $pattern"; exit 1; }
+          done
+          echo ".gitignore OK."
+
+      # ── 7. File size guard ──────────────────────────────────────
+      - name: Check for oversized files
+        run: |
+          MAX_SIZE=6000000  # 6 MB
+          OVERSIZED=$(find . -type f -not -path './.git/*' -size +${MAX_SIZE}c 2>/dev/null || true)
+          if [ -n "$OVERSIZED" ]; then
+            echo "$OVERSIZED" | while read -r f; do
+              echo "::warning::Large file: $f ($(stat -c%s "$f") bytes)"
+            done
+          fi
+          echo "File size check complete."
+
+      # ── 8. Storage abstraction checks ────────────────────────
+      - name: Verify storage.js Blob abstraction
+        run: |
+          test -f storage.js || { echo "::error::storage.js missing"; exit 1; }
+          grep -q 'BLOB_READ_WRITE_TOKEN' storage.js || { echo "::error::storage.js missing BLOB_READ_WRITE_TOKEN check"; exit 1; }
+          grep -q '@vercel/blob' storage.js || { echo "::error::storage.js does not use @vercel/blob SDK"; exit 1; }
+          if grep -q 'IS_VERCEL' storage.js; then
+            echo "::error::storage.js still has IS_VERCEL guard — Blob must be gated on BLOB_READ_WRITE_TOKEN only"
+            exit 1
+          fi
+          grep -q '"@vercel/blob"' package.json || { echo "::error::package.json missing @vercel/blob dependency"; exit 1; }
+          echo "Storage abstraction checks passed."
+
+      # ── 9. Run validate.sh (aggregated check) ──────────────────
+      - name: Run validation script
+        run: bash validate.sh
