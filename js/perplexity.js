@@ -266,7 +266,7 @@ export function refreshCostDisplay() {
 // ==================== Static-mode helper: build AM stats from local data ====================
 /**
  * In static mode (no backend), derive a leaderboard / AM summary from the
- * in-memory ZIP data + identified overrides stored in localStorage.
+ * in-memory ZIP data + identified overrides stored in the persistence layer.
  * Returns an object { am: count } sorted desc.
  */
 function buildLocalAMStats() {
