@@ -356,9 +356,9 @@ app.get("/api/dataset-meta", requireAuth, datasetMetaLimiter, function (_req, re
 // --------------- Perplexity Sonar-Pro (backend-only, key never exposed to frontend) ---------------
 var PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY || "";
 
-var SONAR_SYSTEM_MSG = "You are a sales qualification assistant for Thermo Fisher Scientific's Chromatography and Mass Spectrometry Division (CMD). Return exactly one sentence: state whether the queried company is or is not a likely CMD target customer, with the primary reason. No hedging, no bullet points, no follow-up questions.";
+var SONAR_SYSTEM_MSG = "You are a sales qualification assistant for Thermo Fisher Scientific's Chromatography and Mass Spectrometry Division (CMD). Research the company's industry, analytical laboratory activities, published methods, job postings mentioning liquid chromatography, trace elemental analysis, ICP-OES, ICP-MS, ion chromatography, PFAS analysis, nitrosamine testing, environmental safety, food testing, or mass spectrometry, and regulatory environment. CMD targets include pharma, biotech, life sciences, environmental testing, food safety, clinical research,clinical diagnostic, forensic, toxicology, and industrial quality control organizations that purchase or operate LC, GC, HPLC, UHPLC, or mass spectrometry instruments. Default geography: Switzerland.Return exactly one sentence: state whether the queried company is or is not a likely CMD target customer, with the primary reason. No hedging, no bullet points, no follow-up questions.";
 
-var SONAR_USER_MSG_TEMPLATE = "Is {company_name} a target customer for Thermo Fisher Scientific's Chromatography and Mass Spectrometry (CMD) division? Research the company's industry, analytical laboratory activities, published methods, job postings mentioning liquid chromatography, trace elemental analysis, ICP-OES, ICP-MS, ion chromatography, PFAS, environmental safety, food testing, or mass spectrometry, and regulatory environment. CMD targets include pharma, biotech, life sciences, environmental testing, food safety, clinical research,clinical diagnostic, forensic, toxicology, and industrial quality control organizations that purchase or operate LC, GC, HPLC, UHPLC, or mass spectrometry instruments. Default geography: Switzerland.";
+var SONAR_USER_MSG_TEMPLATE = "Is {company_name} a target customer for Thermo Fisher Scientific's Chromatography and Mass Spectrometry (CMD) division? ";
 
 var SONAR_JSON_SCHEMA = {
   type: "json_schema",
@@ -377,7 +377,7 @@ var SONAR_JSON_SCHEMA = {
 // Rate-limit Sonar endpoint: 30 requests / 15 min per IP
 var sonarLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 30,
+  max: 60,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many Sonar requests. Try again later." },
